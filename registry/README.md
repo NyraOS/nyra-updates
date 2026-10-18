@@ -243,6 +243,10 @@ channels/<repo>/<channel>.json    {"current": "2026.10.3", "previous": "2026.10.
                                    "percent": 25, "halted": false, "retracted": ["2026.10.2"]}
 ```
 
+A channel file cannot say "no release yet" (`valid_state` needs a `current` that is in
+`releases.json`), so a channel has no file until `rollout.sh set` creates it, and CI skips it. Today
+only `channels/nyra/releases.json` exists, empty (`{}`).
+
 A rollout change is a **commit** (pull request, review, merge by the coordinator). On `main`, CI
 builds the sheet from these files, signs it and **only writes it** to KV
 (`scripts/publish-sheet.sh`); it re-signs daily from the same git state. And the **emergency stop
@@ -465,8 +469,15 @@ from the first 32 bits.
 The job arrives together with production publishing, because it also needs the Cloudflare token for
 KV (write only). Its design:
 
+The workflow is `.github/workflows/channel-publish.yml` (the sketch below is its first design; it
+differs in the details: the path filter also covers `keys/**`, a channel without a file is skipped,
+the Cloudflare secret is `CLOUDFLARE_KV_TOKEN`, and the public key is `keys/channel-sheet.pem`,
+at the root of this repository). It stays off until the owner sets `SHEET_KMS_KEY`, together with
+`SHEET_WIF_PROVIDER` and `SHEET_SIGNER_SA`. `.github/workflows/registry-deploy.yml` deploys the
+Worker on `main` only when the variable `REGISTRY_DEPLOY` is `on`.
+
 ```yaml
-# .github/workflows/channel-publish.yml (planned, with production publishing)
+# .github/workflows/channel-publish.yml (the first design)
 on:
   push: { branches: [main], paths: ["channels/**"] }   # a rollout change = a commit on main
   schedule: [{ cron: "23 4 * * *" }]                    # daily re-signing of the state in git: the sheet does not expire
@@ -480,7 +491,7 @@ jobs:
       - uses: actions/checkout@…                 # the state comes from main, not from KV
       - uses: google-github-actions/auth@…        # WIF → the sheet service account
         id: google
-        with: { workload_identity_provider: …, service_account: …, token_format: access_token }
+        with: { workload_identity_provider: …, service_account: …, token_format: access_token, create_credentials_file: false }
       - run: for f in channels/*/{dev,beta,stable}.json; do …/publish-sheet.sh "<repo>:<channel>"; done   # --remote
         env:
           SHEET_KMS_KEY: ${{ vars.SHEET_KMS_KEY }}
@@ -498,6 +509,22 @@ and a hosted runner; the public key (`gcloud kms keys versions get-public-key`) 
 to nyra-base and to this repository; only then the `SHEET_KMS_KEY` variable.
 `scripts/sign-sheet.sh` does the signing (the `asymmetricSign` REST API, the token passed through a
 header file, not on the command line) and verifies the signature before writing it.
+
+**Cloudflare tokens, one per job, each as small as possible:**
+
+| Secret | Used by | May do |
+|---|---|---|
+| `CLOUDFLARE_KV_TOKEN` | `channel-publish.yml` | **KV only:** write on the `TAGS` namespace, nothing else (no Workers scripts, no routes, no R2) |
+| `CLOUDFLARE_API_TOKEN` | `registry-deploy.yml` only | deploy the Worker (Workers scripts and routes) |
+
+The signing job never gets the deploy token, so a change to that workflow cannot reach the Worker
+code. In `publish-sheet.sh` the Google token (`SHEET_KMS_TOKEN`) is passed only to `sign-sheet.sh`:
+wrangler does not inherit it, and the Google credentials file is not created.
+
+**Scheduled runs stop by themselves:** GitHub disables scheduled workflows in a public repository
+after 60 days without activity. Then the daily publication stops, the sheets expire after 7 days
+and computers stop updating (safe: they stay on their version), but it must be watched: any commit
+or re-enabling the workflow in the Actions tab restarts it.
 
 **What stays in our trust:** who can commit to `main` (which is why signing is off until it is
 protected) and who can obtain a token for the service account. A KV writer can only delete or
