@@ -8,4 +8,10 @@ publish image blobs and sign the channel sheets. The client that reads them, `ny
 Nothing is deployed from a developer machine: every change goes through a pull request, and only
 CI on `main` publishes. Signing keys are never in this repository or on a build machine.
 
+## Layout
+
+- `registry/`: the Cloudflare Worker (TypeScript) that serves the images and the channel sheets,
+  with its tests and the scripts that edit and sign the channel state. Its README explains the design.
+- `channels/`: will hold the channel states (which version each of dev, beta and stable serves).
+
 Licence: GPL-3.0-or-later (LICENSE).

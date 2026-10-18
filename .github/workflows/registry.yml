@@ -1,0 +1,30 @@
+# Tests of the registry Worker on every push and pull request. No secrets: the tests run in a local
+# workerd with local R2 and KV, and nothing is deployed from here.
+# Every push to any branch is tested. The pull_request run only tests pull requests from forks,
+# whose pushes do not run here, so each push is tested once.
+name: registry
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  registry:
+    # The pull_request run skips this job; a skipped check counts as passed, so it gets its own name.
+    name: ${{ github.event_name == 'pull_request' && 'registry (pull request)' || 'registry' }}
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: registry
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # package.json needs Node >= 22; 24 is the current LTS.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm test

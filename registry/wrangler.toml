@@ -1,0 +1,53 @@
+# Nyra OS registry (read-only OCI Distribution API over R2 + KV). README.md explains the design.
+# The account and KV namespace IDs below are real, but nothing is deployed yet: the route is
+# commented out. Deployment is done only by CI on main, later, never from a developer machine.
+
+account_id = "67094f0a1adf21bd1d8e27d2f213c3c8"
+name = "nyra-registry"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+workers_dev = false
+# routes = [{ pattern = "updates.nyraos.com", custom_domain = true }]
+
+[vars]
+REPOSITORIES = "nyra"
+# Public custom domain of the R2 bucket (a different host name than the registry, so clients
+# drop the Authorization header, i.e. the install code, when they follow the redirect).
+BLOB_BASE_URL = "https://blobs.nyraos.com"
+
+# Salt of the rollout group (README.md, "Gradual rollout, stop and revert"): a Worker secret, set once with
+# `wrangler secret put ROLLOUT_SALT` (random, e.g. `openssl rand -hex 32`), never written here.
+# Changing it reshuffles every client into a new group. Without it there are no groups: during a
+# rollout every client gets the previous version, until the rollout reaches 100%.
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "nyra-images"
+
+[[kv_namespaces]]
+binding = "TAGS"
+id = "01b69bd7bf0741fd80c0a3b7e0adf3cd"
+
+# Invocation logs stay off until it is verified that they never record the Authorization
+# header (it carries the anonymous install code).
+[observability]
+enabled = false
+
+# Local development: `npm run dev`. Adds the /_dev blob origin (dev/entry.ts) in place of the
+# public R2 domain. State lives in .wrangler/state (gitignored).
+[env.local]
+main = "dev/entry.ts"
+
+[env.local.vars]
+REPOSITORIES = "nyra"
+BLOB_BASE_URL = "/_dev"
+# Local only, not a secret: production reads the real salt from the Worker secret.
+ROLLOUT_SALT = "local-dev-salt-not-secret"
+
+[[env.local.r2_buckets]]
+binding = "IMAGES"
+bucket_name = "nyra-images"
+
+[[env.local.kv_namespaces]]
+binding = "TAGS"
+id = "00000000000000000000000000000000"
