@@ -1,0 +1,26 @@
+{
+  "name": "nyra-registry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Read-only OCI registry for Nyra OS system updates (Cloudflare Worker over R2 + KV)",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --env local --ip 127.0.0.1 --port 8787",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "0.22.0",
+    "@cloudflare/workers-types": "5.20260915.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "wrangler": "4.124.0"
+  },
+  "overrides": {
+    "undici": "7.30.0",
+    "sharp": "0.35.5"
+  }
+}
