@@ -48,6 +48,12 @@ publish() { scripts/publish-image.sh "$@"; }
 make_layout "$tmp/good"
 make_layout "$tmp/corrupt"
 printf 'x' >>"$tmp/corrupt/blobs/sha256/${layer#sha256:}"
+make_layout "$tmp/symlink-blob"
+manifest_file="$tmp/symlink-blob/blobs/sha256/$(jq -r '.manifests[0].digest[7:]' "$tmp/symlink-blob/index.json")"
+layer_file="$tmp/symlink-blob/blobs/sha256/$(jq -r '.layers[0].digest[7:]' "$manifest_file")"
+mv "$layer_file" "$tmp/moved-layer" && ln -s "$tmp/moved-layer" "$layer_file"
+make_layout "$tmp/symlink-index"
+mv "$tmp/symlink-index/index.json" "$tmp/moved-index.json" && ln -s "$tmp/moved-index.json" "$tmp/symlink-index/index.json"
 make_layout "$tmp/missing"
 rm "$tmp/missing/blobs/sha256/${layer#sha256:}"
 # The layouts differ (the layer text has the directory), so read the good one's digests again.
@@ -56,6 +62,8 @@ layer=$(jq -r '.layers[0].digest' "$tmp/good/blobs/sha256/${manifest#sha256:}")
 
 refused "corrupted blob" publish "$tmp/corrupt" nyra 2026.10.3
 refused "missing layer" publish "$tmp/missing" nyra 2026.10.3
+refused "symlinked blob" publish "$tmp/symlink-blob" nyra 2026.10.3
+refused "symlinked index.json" publish "$tmp/symlink-index" nyra 2026.10.3
 refused "bad repository" publish "$tmp/good" "Nyra" 2026.10.3
 refused "bad repository path" publish "$tmp/good" "../nyra" 2026.10.3
 refused "bad version" publish "$tmp/good" nyra 2026.10
@@ -65,6 +73,21 @@ refused "not a layout" publish "$tmp" nyra 2026.10.3
 out=$(publish "$tmp/good" nyra 2026.10.3) && ok "publish" || fail "publish"
 grep -qx 'blobs: 3 uploaded, 0 already present' <<<"$out" && ok "three blobs uploaded" || fail "blobs: $out"
 grep -qx "add to channels/nyra/releases.json:  \"2026.10.3\": \"$manifest\"" <<<"$out" && ok "releases.json line" || fail "releases line: $out"
+repo_root=$PWD
+(cd "$tmp" && "$repo_root/scripts/publish-image.sh" good nyra 2026.10.3) | grep -q 'nothing to do' &&
+  ok "same layout, same version: no-op (relative OCI_DIR)" || fail "second publish of the same version"
+make_layout "$tmp/other"
+state_hash() { find "$LOCAL_STATE_DIR" -type f -exec sha256sum {} + | sort | sha256sum; }
+state_before=$(state_hash)
+if publish "$tmp/other" nyra 2026.10.3 >/dev/null 2>&1; then fail "re-pointing a version: accepted"
+elif [ "$state_before" != "$(state_hash)" ]; then fail "re-pointing a version: something was written"
+else ok "another layout under a released version is refused, nothing written"; fi
+make_layout "$tmp/stray"
+printf 'not in the manifest' >"$tmp/stray/blobs/sha256/$(printf 'not in the manifest' | sha256sum | cut -d' ' -f1)"
+out=$(publish "$tmp/stray" nyra 2026.10.5)
+grep -qx 'blobs: 2 uploaded, 1 already present' <<<"$out" && ok "a blob outside the manifest is not uploaded" || fail "stray blob: $out"
+read -r manifest < <(jq -r '.manifests[0].digest' "$tmp/good/index.json") # make_layout overwrote these
+layer=$(jq -r '.layers[0].digest' "$tmp/good/blobs/sha256/${manifest#sha256:}")
 out=$(publish "$tmp/good" nyra 2026.10.4)
 grep -qx 'blobs: 0 uploaded, 3 already present' <<<"$out" && ok "existing blobs are not uploaded again" || fail "second publish: $out"
 

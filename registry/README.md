@@ -97,9 +97,12 @@ Order matters: **blobs first, the tag last**, so a tag never points to something
    ```bash
    scripts/publish-image.sh --remote out nyra 2026.10.3
    ```
-   `scripts/publish-image.sh` first checks the whole layout (every blob against its SHA-256 file
-   name, and that the manifest, its config and its layers are present with the right sizes) and
-   refuses before uploading anything. It then uploads the blobs with `aws s3 cp` against the R2 S3
+   `scripts/publish-image.sh` first checks what the manifest references (the manifest blob, its
+   config and its layers: regular files, never symlinks, each against its SHA-256 file name, with
+   the right sizes) and refuses before uploading anything; other files in the layout are ignored
+   and never uploaded. A version that is already released is never re-pointed: if
+   `tag/<repo>/<version>` exists with the same digest the script does nothing, with another digest
+   it stops with an error before writing anything. It then uploads the blobs with `aws s3 cp` against the R2 S3
    endpoint (the `aws` CLI is preinstalled on the ubuntu-24.04 runners; rclone is not), with
    `Cache-Control: public, max-age=31536000, immutable`, skipping the objects that already exist,
    so nothing is overwritten. The key (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) is an R2 token
@@ -113,8 +116,11 @@ Order matters: **blobs first, the tag last**, so a tag never points to something
    "Operation").
 4. **Who writes what:** the build machine may upload blobs (they are content-addressed, and the
    client verifies the digest), but **only the signing job on the GitHub runners** writes the tags
-   and the signatures. Recommendation: a lock rule on the bucket (R2 bucket lock) on `blobs/`, so
-   that a compromised build machine cannot overwrite or delete existing blobs.
+   and the signatures. The bucket has a lock rule (R2 bucket lock) on `blobs/` (30 days), so that a
+   compromised build machine cannot overwrite or delete existing blobs. The job that runs
+   `publish-image.sh --remote` must run only on `main`, on GitHub-hosted runners, and holds both
+   the R2 key and the KV token; wrangler is always run with `npx --no-install`, so a missing
+   `npm ci` fails instead of downloading it next to a token.
 5. **Deleting** old blobs (the retention rule) is done only for blobs that no kept tag points to
    any more; it is a separate task.
 
