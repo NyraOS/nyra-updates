@@ -1,13 +1,14 @@
 # Nyra OS registry (read-only OCI Distribution API over R2 + KV). README.md explains the design.
-# The account and KV namespace IDs below are real, but nothing is deployed yet: the route is
-# commented out. Deployment is done only by CI on main, later, never from a developer machine.
+# The account and KV namespace IDs below are real. The Worker is deployed by
+# .github/workflows/registry-deploy.yml on push to main (with the repository variable
+# REGISTRY_DEPLOY=on), never from a developer machine.
 
 account_id = "67094f0a1adf21bd1d8e27d2f213c3c8"
 name = "nyra-registry"
 main = "src/index.ts"
 compatibility_date = "2026-08-01"
 workers_dev = false
-# routes = [{ pattern = "updates.nyraos.com", custom_domain = true }]
+routes = [{ pattern = "updates.nyraos.com", custom_domain = true }]
 
 [vars]
 REPOSITORIES = "nyra"

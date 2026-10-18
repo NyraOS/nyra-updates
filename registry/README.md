@@ -5,9 +5,8 @@ Nyra OS images. It speaks the **download** half of the OCI Distribution protocol
 path. CI writes directly to R2 and KV.
 
 **Status:** code and tests are done and verified locally (including `bootc switch` from a VM). The
-IDs in `wrangler.toml` are real, but **nothing is deployed to the Cloudflare account yet**: the
-route is commented out and the domains are the planned ones. Deployment is done only by CI on
-`main`, later, after the owner's approval.
+IDs in `wrangler.toml` are real. The Worker is deployed at `updates.nyraos.com` by
+`.github/workflows/registry-deploy.yml` on `main`, never from a developer machine.
 
 ## How it works
 
