@@ -93,19 +93,22 @@ signed channel sheet"), and nothing in KV is read in order to be signed.
 Order matters: **blobs first, the tag last**, so a tag never points to something that is missing.
 
 1. **The image as an OCI layout:** `skopeo copy containers-storage:localhost/nyra:<version> oci:out:<version>`.
-2. **Blobs to R2, through the S3 API** (large files, multipart), without overwriting what exists:
+2. **Blobs to R2 and the version tag to KV, in one script:**
    ```bash
-   rclone copy --ignore-existing --header-upload "Cache-Control: public, max-age=31536000, immutable" \
-     out/blobs/sha256 r2:nyra-images/blobs/sha256
+   scripts/publish-image.sh --remote out nyra 2026.10.3
    ```
-   (or `aws s3 cp` with `--endpoint-url https://<account>.r2.cloudflarestorage.com`). The key: an
-   R2 token with write permission **only** on the `nyra-images` bucket.
-3. **The version tag in KV, and the version-to-digest pair in git:**
-   ```bash
-   wrangler kv key put --namespace-id <id> --remote "tag/nyra/2026.10.3" '{"digest":"sha256:…"}'
-   ```
-   plus a commit that adds `"2026.10.3": "sha256:…"` to `channels/nyra/releases.json`. **Channels
-   are not written to KV by hand:** promotion to `dev`/`beta`/`stable` and revert are commits to
+   `scripts/publish-image.sh` first checks the whole layout (every blob against its SHA-256 file
+   name, and that the manifest, its config and its layers are present with the right sizes) and
+   refuses before uploading anything. It then uploads the blobs with `aws s3 cp` against the R2 S3
+   endpoint (the `aws` CLI is preinstalled on the ubuntu-24.04 runners; rclone is not), with
+   `Cache-Control: public, max-age=31536000, immutable`, skipping the objects that already exist,
+   so nothing is overwritten. The key (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) is an R2 token
+   with write permission **only** on the `nyra-images` bucket. Last, it does a HEAD of every
+   object (the size must match) and only then writes `tag/nyra/2026.10.3` to KV
+   (`CLOUDFLARE_API_TOKEN`, used by wrangler).
+3. **The version-to-digest pair in git:** the script prints the line
+   `"2026.10.3": "sha256:…"`; a commit adds it to `channels/nyra/releases.json` (the script does
+   not edit that file). **Channels are not written to KV by hand:** promotion to `dev`/`beta`/`stable` and revert are commits to
    the channel files, and CI publishes the signed sheet and the channel tag from them (see
    "Operation").
 4. **Who writes what:** the build machine may upload blobs (they are content-addressed, and the
@@ -554,6 +557,7 @@ npm ci
 npm test            # vitest in workerd (Workers pool), local R2 and KV
 npm run typecheck
 npm run dev         # wrangler dev on :8787, with the state in .wrangler/state
+bash scripts/test-publish-image.sh   # publish-image.sh into a temporary local state, read back through wrangler dev
 ```
 
 `npm run dev` uses `dev/entry.ts`, which adds `/_dev/blobs/...` in place of the public R2 domain
