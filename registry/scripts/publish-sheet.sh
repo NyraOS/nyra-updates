@@ -3,7 +3,7 @@
 # channel sheet"). CI runs it on main after every change of channels/ and once a day (so the
 # sheet never expires); locally it writes the local KV.
 #
-#   scripts/publish-sheet.sh nyra:stable
+#   scripts/publish-sheet.sh [--remote] nyra:stable     # --remote: the real KV (CI only)
 #
 # The input is only channels/<repo>/<channel>.json and releases.json, as checked out. KV is
 # never read: whatever a KV writer puts there is overwritten, never signed. The sequence is the
@@ -19,7 +19,9 @@ TYPE=application/vnd.nyra.channel-sheet.v1+json
 VALIDITY=$((7 * 24 * 60 * 60))
 
 die() { echo "publish-sheet: $*" >&2; exit 1; }
-[ $# -eq 1 ] || die "usage: publish-sheet.sh <repo>:<dev|beta|stable>"
+kv_target="--env local --local"
+if [ "${1:-}" = --remote ]; then kv_target="--remote"; shift; fi
+[ $# -eq 1 ] || die "usage: publish-sheet.sh [--remote] <repo>:<dev|beta|stable>"
 [[ "$1" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:(dev|beta|stable)$ ]] || die "expected <repo>:dev|beta|stable, got $1"
 repo="${1%%:*}" channel="${1##*:}"
 
@@ -46,7 +48,8 @@ kv_put() {
   if [ -n "${ROLLOUT_KV_DIR:-}" ]; then
     mkdir -p "$(dirname "$ROLLOUT_KV_DIR/$1")" && printf '%s' "$2" >"$ROLLOUT_KV_DIR/$1"
   else
-    npx wrangler --env local kv key put "$1" "$2" --binding TAGS --local >/dev/null # --remote in CI
+    # shellcheck disable=SC2086 # kv_target is two words on purpose
+    npx wrangler kv key put "$1" "$2" --binding TAGS $kv_target >/dev/null
   fi
 }
 kv_put "sheet/$repo/$channel" "$envelope"

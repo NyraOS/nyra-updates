@@ -243,6 +243,10 @@ channels/<repo>/<channel>.json    {"current": "2026.10.3", "previous": "2026.10.
                                    "percent": 25, "halted": false, "retracted": ["2026.10.2"]}
 ```
 
+A channel file cannot say "no release yet" (`valid_state` needs a `current` that is in
+`releases.json`), so a channel has no file until `rollout.sh set` creates it, and CI skips it. Today
+only `channels/nyra/releases.json` exists, empty (`{}`).
+
 A rollout change is a **commit** (pull request, review, merge by the coordinator). On `main`, CI
 builds the sheet from these files, signs it and **only writes it** to KV
 (`scripts/publish-sheet.sh`); it re-signs daily from the same git state. And the **emergency stop
@@ -465,8 +469,15 @@ from the first 32 bits.
 The job arrives together with production publishing, because it also needs the Cloudflare token for
 KV (write only). Its design:
 
+The workflow is `.github/workflows/channel-publish.yml` (the sketch below is its first design; it
+differs in the details: the path filter also covers `keys/**`, a channel without a file is skipped,
+the Cloudflare secret is `CLOUDFLARE_API_TOKEN`, and the public key is `keys/channel-sheet.pem`,
+at the root of this repository). It stays off until the owner sets `SHEET_KMS_KEY`, together with
+`SHEET_WIF_PROVIDER` and `SHEET_SIGNER_SA`. `.github/workflows/registry-deploy.yml` deploys the
+Worker on `main` only when the variable `REGISTRY_DEPLOY` is `on`.
+
 ```yaml
-# .github/workflows/channel-publish.yml (planned, with production publishing)
+# .github/workflows/channel-publish.yml (the first design)
 on:
   push: { branches: [main], paths: ["channels/**"] }   # a rollout change = a commit on main
   schedule: [{ cron: "23 4 * * *" }]                    # daily re-signing of the state in git: the sheet does not expire
