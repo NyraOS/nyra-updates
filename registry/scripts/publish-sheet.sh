@@ -18,6 +18,10 @@ rules=$(cat scripts/sheet-rules.jq)
 TYPE=application/vnd.nyra.channel-sheet.v1+json
 VALIDITY=$((7 * 24 * 60 * 60))
 
+# The KMS token is for sign-sheet.sh only: wrangler and the other commands must not inherit it.
+token="${SHEET_KMS_TOKEN:-}"
+unset SHEET_KMS_TOKEN
+
 die() { echo "publish-sheet: $*" >&2; exit 1; }
 kv_target="--env local --local"
 if [ "${1:-}" = --remote ]; then kv_target="--remote"; shift; fi
@@ -40,7 +44,7 @@ payload=$(jq -c --argjson r "$releases" --arg repo "$repo" --arg channel "$chann
 jq -e --arg repo "$repo" --arg channel "$channel" "$rules valid_payload(\$repo; \$channel)" <<<"$payload" >/dev/null ||
   die "refusing to sign an invalid sheet: $payload"
 envelope=$(jq -cn --arg t "$TYPE" --arg p "$payload" '{payloadType: $t, payload: ($p | @base64), signatures: []}' |
-  scripts/sign-sheet.sh)
+  SHEET_KMS_TOKEN="$token" scripts/sign-sheet.sh)
 pointer=$(jq -c 'if .previous == null then {digest: .current.digest}
   else {digest: .current.digest, previous: .previous.digest, percent, halted} end' <<<"$payload")
 

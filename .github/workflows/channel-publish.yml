@@ -37,13 +37,14 @@ jobs:
           workload_identity_provider: ${{ vars.SHEET_WIF_PROVIDER }}
           service_account: ${{ vars.SHEET_SIGNER_SA }}
           token_format: access_token
+          create_credentials_file: false
       # A channel without a file has no release yet: there is nothing to sign, so it is skipped.
       - name: Publish the sheets
         env:
           SHEET_KMS_KEY: ${{ vars.SHEET_KMS_KEY }}
           SHEET_KMS_TOKEN: ${{ steps.google.outputs.access_token }}
           SHEET_PUBLIC_KEY: ${{ github.workspace }}/keys/channel-sheet.pem
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_KV_TOKEN }}
         run: |
           for dir in channels/*/; do
             repo=$(basename "$dir")
