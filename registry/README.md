@@ -512,7 +512,7 @@ jobs:
           SHEET_KMS_KEY: ${{ vars.SHEET_KMS_KEY }}
           SHEET_KMS_TOKEN: ${{ steps.google.outputs.access_token }}
           SHEET_PUBLIC_KEY: …/channel-sheet.pem                  # the committed public key, the same as in the image
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_KV_TOKEN }}  # write only on the TAGS namespace
+          CLOUDFLARE_KV_TOKEN: ${{ secrets.CLOUDFLARE_KV_TOKEN }}  # write only on the TAGS namespace
 ```
 
 No `workflow_dispatch` inputs: there is no way to sign anything other than what is on `main`.
@@ -533,8 +533,10 @@ header file, not on the command line) and verifies the signature before writing 
 | `CLOUDFLARE_API_TOKEN` | `registry-deploy.yml` only | deploy the Worker (Workers scripts and routes) |
 
 The signing job never gets the deploy token, so a change to that workflow cannot reach the Worker
-code. In `publish-sheet.sh` the Google token (`SHEET_KMS_TOKEN`) is passed only to `sign-sheet.sh`:
-wrangler does not inherit it, and the Google credentials file is not created.
+code. In `publish-sheet.sh` the Google token (`SHEET_KMS_TOKEN`) is passed only to `sign-sheet.sh`
+and the KV token only to curl, on stdin; the job has no Node, npm or wrangler (KV goes through
+the Cloudflare REST API, the IDs read from `wrangler.toml`), and the Google credentials file is
+not created.
 
 **Scheduled runs stop by themselves:** GitHub disables scheduled workflows in a public repository
 after 60 days without activity. Then the daily publication stops, the sheets expire after 7 days
