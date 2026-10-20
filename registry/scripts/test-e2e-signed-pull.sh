@@ -94,15 +94,15 @@ sig_tag="${digest/:/-}.sig"
 sk copy --remove-signatures --preserve-digests "docker://$local_registry/nyra-base:1.0.0" "oci:$tmp/pub-image:1.0.0" >/dev/null
 sk copy --remove-signatures --preserve-digests "docker://$local_registry/nyra-base:$sig_tag" "oci:$tmp/pub-sig:$sig_tag" >/dev/null
 
-# --- Publish: the signed image and its signature under nyra-base and elsewhere; unsigned only nyra-base ---
-for repo in nyra-base elsewhere; do
+# --- Publish: the signed image and its signature under nyra-base and nyra-base-arm64; unsigned only nyra-base ---
+for repo in nyra-base nyra-base-arm64; do
   scripts/publish-image.sh "$tmp/pub-image" $repo 1.0.0 >/dev/null
   scripts/publish-image.sh "$tmp/pub-sig" $repo "$sig_tag" >/dev/null
 done
 scripts/publish-image.sh "$tmp/unsigned" nyra-base 2.0.0 >/dev/null
 
 setsid npx --no-install wrangler dev --env local --ip "${worker%:*}" --port "${worker#*:}" \
-  --var REPOSITORIES:nyra-base,elsewhere --persist-to "$LOCAL_STATE_DIR" >"$tmp/dev.log" 2>&1 &
+  --var REPOSITORIES:nyra-base,nyra-base-arm64 --persist-to "$LOCAL_STATE_DIR" >"$tmp/dev.log" 2>&1 &
 pids+=($!)
 # Without credentials the Worker answers 401 (the Basic challenge): that means it is up.
 worker_up() { [[ $(curl -s -o /dev/null -w '%{http_code}' "http://$worker/v2/") =~ ^(200|401)$ ]]; }
@@ -126,7 +126,7 @@ refused() { # <name> <image> <the reason skopeo must give>
 }
 accepted "signed version tag is accepted" nyra-base:1.0.0
 refused "unsigned version tag is refused" nyra-base:2.0.0 "A signature was required, but no signature exists"
-refused "signed image under another repository is refused" elsewhere:1.0.0 "is not accepted"
+refused "signed image under another repository is refused" nyra-base-arm64:1.0.0 "is not accepted"
 
 # --- The Worker serves the signature manifest with its mediaType --------------------------------
 curl -s -u "$creds" -D "$tmp/headers" -o "$tmp/sig-manifest" "http://$worker/v2/nyra-base/manifests/$sig_tag" \

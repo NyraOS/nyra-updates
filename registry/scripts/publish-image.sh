@@ -39,6 +39,8 @@ layout=$(realpath -- "$1") || die "no such directory: $1"
 repo="$2" tagname="$3"
 cd "$(dirname "$0")/.."
 [[ "$repo" =~ ^[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*(/[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)*)*$ ]] || die "invalid repository: $repo"
+# The same allow-list as REPOSITORIES in wrangler.toml; each name is one architecture's images.
+[[ "$repo" == nyra-base || "$repo" == nyra-base-arm64 ]] || die "repository must be nyra-base or nyra-base-arm64: $repo"
 # The same rule as `version` in sheet-rules.jq, so releases.json accepts it.
 version_re='^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$'
 sig_re='^sha256-[0-9a-f]{64}\.sig$'

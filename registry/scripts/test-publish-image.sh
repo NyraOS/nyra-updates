@@ -66,6 +66,8 @@ refused "missing layer" publish "$tmp/missing" nyra-base 2026.10.3
 refused "symlinked blob" publish "$tmp/symlink-blob" nyra-base 2026.10.3
 refused "symlinked index.json" publish "$tmp/symlink-index" nyra-base 2026.10.3
 refused "bad repository" publish "$tmp/good" "Nyra" 2026.10.3
+refused "repository not in the allow-list" publish "$tmp/good" nyra-base-x86 2026.10.3
+refused "repository not in the allow-list (nyra)" publish "$tmp/good" nyra 2026.10.3
 refused "bad repository path" publish "$tmp/good" "../nyra-base" 2026.10.3
 refused "bad version" publish "$tmp/good" nyra-base 2026.10
 refused "bad version (tag-like)" publish "$tmp/good" nyra-base latest

@@ -11,7 +11,7 @@ workers_dev = false
 routes = [{ pattern = "updates.nyraos.com", custom_domain = true }]
 
 [vars]
-REPOSITORIES = "nyra-base"
+REPOSITORIES = "nyra-base,nyra-base-arm64"
 # Public custom domain of the R2 bucket (a different host name than the registry, so clients
 # drop the Authorization header, i.e. the install code, when they follow the redirect).
 BLOB_BASE_URL = "https://blobs.nyraos.com"
@@ -40,7 +40,7 @@ enabled = false
 main = "dev/entry.ts"
 
 [env.local.vars]
-REPOSITORIES = "nyra-base"
+REPOSITORIES = "nyra-base,nyra-base-arm64"
 BLOB_BASE_URL = "/_dev"
 # Local only, not a secret: production reads the real salt from the Worker secret.
 ROLLOUT_SALT = "local-dev-salt-not-secret"

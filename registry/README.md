@@ -28,6 +28,11 @@ Checks done by the Worker:
 - An object larger than 4 MiB, or one that is not a known manifest (a layer, a config), is not
   served as a manifest and is not read.
 - The repository name must be in `REPOSITORIES`; the only accepted digests are `sha256`.
+- Two repositories are served: `nyra-base` (amd64) and `nyra-base-arm64` (arm64), in both
+  environments of `wrangler.toml`; `publish-image.sh` refuses any other name. The digests in
+  `channels/nyra-base-arm64/releases.json` come only from the arm64 publish summary: a signature
+  made for one repository is not accepted under the other, and a wrong-architecture digest is
+  refused by the client's `matchRepository`.
 - Layers are not verified by the Worker (they do not pass through it); **the client verifies the
   digest** of everything it downloads, and the image signature (cosign) covers the manifest.
 

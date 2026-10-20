@@ -89,6 +89,20 @@ describe("repository names", () => {
     expect(await errorCode(res)).toBe("NAME_UNKNOWN");
   });
 
+  it("serves nyra-base and nyra-base-arm64, each with its own tags, and no third repository", async () => {
+    const { manifest } = await putImage();
+    await pointTag("nyra-base-arm64", "stable", manifest);
+    const arm = await call("GET", "/v2/nyra-base-arm64/manifests/stable");
+    expect(arm.status).toBe(200);
+    expect(arm.headers.get("Docker-Content-Digest")).toBe(manifest);
+    expect((await call("GET", "/v2/nyra-base/manifests/stable")).status).toBe(404);
+    for (const third of ["nyra-base-x86", "nyra"]) {
+      const res = await call("GET", `/v2/${third}/manifests/stable`);
+      expect(res.status).toBe(404);
+      expect(await errorCode(res)).toBe("NAME_UNKNOWN");
+    }
+  });
+
   it("serves nested names listed in REPOSITORIES", async () => {
     const { manifest } = await putImage();
     await pointTag("nyra-base/desktop", "stable", manifest);
