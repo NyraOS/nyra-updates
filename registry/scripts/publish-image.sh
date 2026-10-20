@@ -28,6 +28,12 @@ die() { echo "publish-image: $*" >&2; exit 1; }
 remote=false
 if [ "${1:-}" = --remote ]; then remote=true; shift; fi
 [ $# -eq 3 ] || die "usage: publish-image.sh [--remote] OCI_DIR REPO TAG"
+# Local mode must not hold any token: a token left in the environment stops it before anything runs.
+if ! $remote; then
+  for v in R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY CLOUDFLARE_KV_TOKEN; do
+    [ -z "${!v:-}" ] || die "$v is set: local mode refuses to run with secrets in the environment (use --remote)"
+  done
+fi
 # Absolute before the cd below, or a relative OCI_DIR would point into registry/.
 layout=$(realpath -- "$1") || die "no such directory: $1"
 repo="$2" tagname="$3"
@@ -105,7 +111,7 @@ if $remote; then
   kv_api="https://api.cloudflare.com/client/v4/accounts/$account_id/storage/kv/namespaces/$kv_id"
   # The token is a curl config on stdin (printf is a builtin): it is never in any argv.
   kv_curl() { printf 'header = "Authorization: Bearer %s"\n' "$kv_token" |
-    curl -K - --silent --show-error --fail "$@"; }
+    curl -K - --silent --show-error --fail --proto =https --max-time 60 "$@"; }
   uri() { jq -rn --arg s "$1" '$s | @uri'; }
   kv_list() { kv_curl "$kv_api/keys?prefix=$(uri "$1")" | jq -e 'select(.success) | .result'; }
   kv_get() { kv_curl "$kv_api/values/$(uri "$1")"; }

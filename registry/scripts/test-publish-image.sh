@@ -182,14 +182,18 @@ dangling=$(manifest_of "$tmp/dangling")
 printf 'tag/nyra-base/sha256-%s.sig\t{"digest":"sha256:%s"}\n' "${dangling#sha256:}" "$(printf 'b%.0s' $(seq 64))" >>"$stub/kv.tsv"
 remote_refused "remote: a signature whose manifest is not in R2" remote "$tmp/dangling" nyra-base 2026.11.2
 
-# Each secret reaches only its own program, and none is in an argument list.
-! grep -q '^AWS_\|^R2_\|^CLOUDFLARE_' "$stub/curl.env" && ok "curl gets no R2 or AWS variable" || fail "curl got a secret in its environment"
-! grep -q '^CLOUDFLARE_\|^R2_' "$stub/aws.env" && ok "aws gets no KV token" || fail "aws got the KV token"
-! grep -q 'test-kv-token' "$stub/curl.argv" && ok "the KV token is not in curl's arguments" || fail "KV token in curl argv"
+# Each secret reaches only its own program, and none is in an argument list. The stub logs must
+# exist first: a missing log would make a negative grep pass.
+[ -s "$stub/curl.env" ] && ! grep -q '^AWS_\|^R2_\|^CLOUDFLARE_' "$stub/curl.env" && ok "curl gets no R2 or AWS variable" || fail "curl got a secret in its environment"
+[ -s "$stub/aws.env" ] && ! grep -q '^CLOUDFLARE_\|^R2_' "$stub/aws.env" && ok "aws gets no KV token" || fail "aws got the KV token"
+[ -s "$stub/curl.argv" ] && ! grep -q 'test-kv-token' "$stub/curl.argv" && ok "the KV token is not in curl's arguments" || fail "KV token in curl argv"
 
 setsid npx wrangler dev --env local --ip 127.0.0.1 --port "$port" --persist-to "$LOCAL_STATE_DIR" >"$tmp/dev.log" 2>&1 &
 dev_pid=$!
 for _ in $(seq 60); do curl -sf -o /dev/null "$registry/v2/" -H 'Authorization: Basic Og==' && break; sleep 1; done
+# The remote section above made more layouts and overwrote manifest and layer: read the good one again.
+read -r manifest < <(jq -r '.manifests[0].digest' "$tmp/good/index.json")
+layer=$(jq -r '.layers[0].digest' "$tmp/good/blobs/sha256/${manifest#sha256:}")
 
 pulled=$(curl -sf "$registry/v2/nyra-base/manifests/2026.10.3" -H 'Authorization: Basic Og==' | sha256sum | cut -d' ' -f1) || pulled=
 [ "sha256:$pulled" = "$manifest" ] && ok "the Worker serves the manifest by version" || fail "manifest by version: $pulled"
