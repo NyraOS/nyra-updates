@@ -85,7 +85,9 @@ curl -sf -o /dev/null "http://$local_registry/v2/" || { cat "$tmp/registry.log" 
 
 make_image "$tmp/signed" 1.0.0 signed
 make_image "$tmp/unsigned" 2.0.0 unsigned
+# The signature names the image as it is pulled through the Worker, as a release signature does.
 sk copy --sign-by-sigstore-private-key "$tmp/test.private" --sign-passphrase-file "$tmp/pass" \
+  --sign-identity "$worker/nyra-base:1.0.0" \
   "oci:$tmp/signed:1.0.0" "docker://$local_registry/nyra-base:1.0.0" >/dev/null
 digest=$(sk inspect --format '{{.Digest}}' "docker://$local_registry/nyra-base:1.0.0")
 sig_tag="${digest/:/-}.sig"
