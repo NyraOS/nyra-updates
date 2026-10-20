@@ -8,7 +8,7 @@
 #   - the Worker serves the signature manifest with its mediaType (it answers 404 without one).
 # The signed image is first pushed (and signed) to a throwaway local registry, because skopeo
 # writes signature attachments only to a registry; both layouts are then exported from it.
-# Needs skopeo and the `registry` program (Ubuntu: skopeo, docker-registry), jq, curl, npm ci.
+# Needs skopeo and `docker-registry` (Ubuntu package docker-registry), jq, curl, npm ci.
 # The key is generated here and never leaves the temporary directory.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -77,7 +77,8 @@ storage:
 http:
   addr: $local_registry
 EOF
-setsid registry serve "$tmp/registry.yml" >"$tmp/registry.log" 2>&1 &
+command -v docker-registry >/dev/null || { echo "docker-registry is not installed" >&2; exit 1; }
+setsid docker-registry serve "$tmp/registry.yml" >"$tmp/registry.log" 2>&1 &
 pids+=($!)
 for _ in $(seq 30); do curl -sf -o /dev/null "http://$local_registry/v2/" && break; sleep 1; done
 curl -sf -o /dev/null "http://$local_registry/v2/" || { cat "$tmp/registry.log" >&2; exit 1; }
