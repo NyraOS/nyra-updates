@@ -571,6 +571,7 @@ npm test            # vitest in workerd (Workers pool), local R2 and KV
 npm run typecheck
 npm run dev         # wrangler dev on :8787, with the state in .wrangler/state
 bash scripts/test-publish-image.sh   # publish-image.sh into a temporary local state, read back through wrangler dev
+bash scripts/test-e2e-signed-pull.sh  # signed pull through wrangler dev with skopeo (needs skopeo, docker-registry)
 ```
 
 `npm run dev` uses `dev/entry.ts`, which adds `/_dev/blobs/...` in place of the public R2 domain
