@@ -3,7 +3,7 @@
 # the same way CI publishes to the real R2 bucket and KV namespace: blobs first, tags last.
 #
 #   scripts/seed-local.sh <oci-layout-dir> <repository> <tag>=<ref.name in index.json> ...
-#   scripts/seed-local.sh .wrangler/oci nyra stable=busybox beta=busybox-zstd
+#   scripts/seed-local.sh .wrangler/oci nyra-base stable=busybox beta=busybox-zstd
 #
 # Make a layout with skopeo, for example from the Podman machine (FCOS ships skopeo):
 #   podman machine ssh skopeo copy --override-arch arm64 \

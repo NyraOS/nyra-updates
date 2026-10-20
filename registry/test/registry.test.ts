@@ -50,11 +50,11 @@ describe("GET /v2/", () => {
 
 describe("read-only", () => {
   it.each([
-    ["POST", "/v2/nyra/blobs/uploads/"],
-    ["PUT", "/v2/nyra/manifests/stable"],
-    ["PATCH", "/v2/nyra/blobs/uploads/x"],
-    ["DELETE", "/v2/nyra/manifests/stable"],
-    ["DELETE", `/v2/nyra/blobs/${MISSING}`],
+    ["POST", "/v2/nyra-base/blobs/uploads/"],
+    ["PUT", "/v2/nyra-base/manifests/stable"],
+    ["PATCH", "/v2/nyra-base/blobs/uploads/x"],
+    ["DELETE", "/v2/nyra-base/manifests/stable"],
+    ["DELETE", `/v2/nyra-base/blobs/${MISSING}`],
   ])("refuses %s %s", async (method, path) => {
     const res = await call(method, path);
     expect(res.status).toBe(405);
@@ -63,12 +63,12 @@ describe("read-only", () => {
   });
 
   it("does not change storage on refused writes", async () => {
-    await call("PUT", "/v2/nyra/manifests/stable");
+    await call("PUT", "/v2/nyra-base/manifests/stable");
     expect((await env.TAGS.list()).keys).toHaveLength(0);
     expect((await env.IMAGES.list()).objects).toHaveLength(0);
   });
 
-  it.each(["/", "/v2/_catalog", `/v2/nyra/referrers/${MISSING}`, "/v2/nyra/blobs/uploads/x/y"])(
+  it.each(["/", "/v2/_catalog", `/v2/nyra-base/referrers/${MISSING}`, "/v2/nyra-base/blobs/uploads/x/y"])(
     "returns 404 for %s",
     async (path) => {
       expect((await call("GET", path)).status).toBe(404);
@@ -91,8 +91,8 @@ describe("repository names", () => {
 
   it("serves nested names listed in REPOSITORIES", async () => {
     const { manifest } = await putImage();
-    await pointTag("nyra/desktop", "stable", manifest);
-    const res = await call("GET", "/v2/nyra/desktop/manifests/stable", {}, { REPOSITORIES: "nyra, nyra/desktop" });
+    await pointTag("nyra-base/desktop", "stable", manifest);
+    const res = await call("GET", "/v2/nyra-base/desktop/manifests/stable", {}, { REPOSITORIES: "nyra-base, nyra-base/desktop" });
     expect(res.status).toBe(200);
     expect(res.headers.get("Docker-Content-Digest")).toBe(manifest);
   });
@@ -101,8 +101,8 @@ describe("repository names", () => {
 describe("manifests", () => {
   it("serves a manifest by tag", async () => {
     const { manifest, manifestBytes } = await putImage();
-    await pointTag("nyra", "stable", manifest);
-    const res = await call("GET", "/v2/nyra/manifests/stable");
+    await pointTag("nyra-base", "stable", manifest);
+    const res = await call("GET", "/v2/nyra-base/manifests/stable");
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe(OCI_MANIFEST);
     expect(res.headers.get("Docker-Content-Digest")).toBe(manifest);
@@ -113,8 +113,8 @@ describe("manifests", () => {
 
   it("answers HEAD by tag with the same headers and no body", async () => {
     const { manifest, manifestBytes } = await putImage();
-    await pointTag("nyra", "stable", manifest);
-    const res = await call("HEAD", "/v2/nyra/manifests/stable");
+    await pointTag("nyra-base", "stable", manifest);
+    const res = await call("HEAD", "/v2/nyra-base/manifests/stable");
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe(OCI_MANIFEST);
     expect(res.headers.get("Docker-Content-Digest")).toBe(manifest);
@@ -124,12 +124,12 @@ describe("manifests", () => {
 
   it("serves a manifest by digest (GET and HEAD), cacheable forever", async () => {
     const { manifest, manifestBytes } = await putImage();
-    const res = await call("GET", `/v2/nyra/manifests/${manifest}`);
+    const res = await call("GET", `/v2/nyra-base/manifests/${manifest}`);
     expect(res.status).toBe(200);
     expect(res.headers.get("Docker-Content-Digest")).toBe(manifest);
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
     expect(new Uint8Array(await res.arrayBuffer())).toEqual(manifestBytes);
-    const head = await call("HEAD", `/v2/nyra/manifests/${manifest}`);
+    const head = await call("HEAD", `/v2/nyra-base/manifests/${manifest}`);
     expect(head.status).toBe(200);
     expect(await head.text()).toBe("");
   });
@@ -140,8 +140,8 @@ describe("manifests", () => {
     "application/vnd.docker.distribution.manifest.list.v2+json",
   ])("serves %s with its own content type", async (mediaType) => {
     const digest = await putBlob(bytes(JSON.stringify({ schemaVersion: 2, mediaType, manifests: [] })));
-    await pointTag("nyra", "beta", digest);
-    const res = await call("GET", "/v2/nyra/manifests/beta");
+    await pointTag("nyra-base", "beta", digest);
+    const res = await call("GET", "/v2/nyra-base/manifests/beta");
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe(mediaType);
   });
@@ -149,18 +149,18 @@ describe("manifests", () => {
   it("follows the channel when the tag moves", async () => {
     const v1 = await putImage();
     const v2 = await putImage();
-    await pointTag("nyra", "stable", v1.manifest);
-    expect((await call("HEAD", "/v2/nyra/manifests/stable")).headers.get("Docker-Content-Digest")).toBe(v1.manifest);
-    await pointTag("nyra", "stable", v2.manifest);
-    expect((await call("HEAD", "/v2/nyra/manifests/stable")).headers.get("Docker-Content-Digest")).toBe(v2.manifest);
+    await pointTag("nyra-base", "stable", v1.manifest);
+    expect((await call("HEAD", "/v2/nyra-base/manifests/stable")).headers.get("Docker-Content-Digest")).toBe(v1.manifest);
+    await pointTag("nyra-base", "stable", v2.manifest);
+    expect((await call("HEAD", "/v2/nyra-base/manifests/stable")).headers.get("Docker-Content-Digest")).toBe(v2.manifest);
   });
 
   it("returns MANIFEST_UNKNOWN for unknown tags and digests", async () => {
     for (const ref of ["nope", MISSING]) {
-      const res = await call("GET", `/v2/nyra/manifests/${ref}`);
+      const res = await call("GET", `/v2/nyra-base/manifests/${ref}`);
       expect(res.status).toBe(404);
       expect(await errorCode(res)).toBe("MANIFEST_UNKNOWN");
-      const head = await call("HEAD", `/v2/nyra/manifests/${ref}`);
+      const head = await call("HEAD", `/v2/nyra-base/manifests/${ref}`);
       expect(head.status).toBe(404);
       expect(await head.text()).toBe("");
     }
@@ -168,15 +168,15 @@ describe("manifests", () => {
 
   it("does not serve tags of another repository", async () => {
     const { manifest } = await putImage();
-    await pointTag("nyra", "stable", manifest);
-    const res = await call("GET", "/v2/other/manifests/stable", {}, { REPOSITORIES: "nyra,other" });
+    await pointTag("nyra-base", "stable", manifest);
+    const res = await call("GET", "/v2/other/manifests/stable", {}, { REPOSITORIES: "nyra-base,other" });
     expect(res.status).toBe(404);
   });
 
   it("logs and returns 404 when a tag points to a missing manifest", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    await pointTag("nyra", "stable", MISSING);
-    const res = await call("GET", "/v2/nyra/manifests/stable");
+    await pointTag("nyra-base", "stable", MISSING);
+    const res = await call("GET", "/v2/nyra-base/manifests/stable");
     expect(res.status).toBe(404);
     expect(error).toHaveBeenCalledOnce();
   });
@@ -186,9 +186,9 @@ describe("manifests", () => {
     const { manifest } = await putImage();
     const other = bytes(JSON.stringify({ schemaVersion: 2, mediaType: OCI_MANIFEST, config: {}, layers: [] }));
     await env.IMAGES.put(`blobs/sha256/${hexOf(manifest)}`, other); // corrupted in storage
-    await pointTag("nyra", "stable", manifest);
+    await pointTag("nyra-base", "stable", manifest);
     for (const ref of [manifest, "stable"]) {
-      const res = await call("GET", `/v2/nyra/manifests/${ref}`);
+      const res = await call("GET", `/v2/nyra-base/manifests/${ref}`);
       expect(res.status).toBe(500);
       expect(await res.text()).not.toContain("schemaVersion");
     }
@@ -200,10 +200,10 @@ describe("manifests", () => {
     const unknownType = await putBlob(bytes(JSON.stringify({ schemaVersion: 2, mediaType: "text/plain" })));
     const big = await putBlob(new Uint8Array(MAX_MANIFEST_BYTES + 1));
     for (const digest of [layer, config, unknownType, big]) {
-      expect((await call("GET", `/v2/nyra/manifests/${digest}`)).status).toBe(404);
+      expect((await call("GET", `/v2/nyra-base/manifests/${digest}`)).status).toBe(404);
     }
-    await pointTag("nyra", "stable", layer);
-    expect((await call("GET", "/v2/nyra/manifests/stable")).status).toBe(404);
+    await pointTag("nyra-base", "stable", layer);
+    expect((await call("GET", "/v2/nyra-base/manifests/stable")).status).toBe(404);
   });
 
   it.each([
@@ -214,7 +214,7 @@ describe("manifests", () => {
     ["-bad", "TAG_INVALID"],
     ["t".repeat(129), "TAG_INVALID"],
   ])("rejects reference %s with %s", async (ref, code) => {
-    const res = await call("GET", `/v2/nyra/manifests/${ref}`);
+    const res = await call("GET", `/v2/nyra-base/manifests/${ref}`);
     expect(res.status).toBe(400);
     expect(await errorCode(res)).toBe(code);
   });
@@ -223,8 +223,8 @@ describe("manifests", () => {
     "returns 500 for a corrupt tag pointer %s",
     async (value) => {
       vi.spyOn(console, "error").mockImplementation(() => {});
-      await setTag("nyra", "stable", value);
-      const res = await call("GET", "/v2/nyra/manifests/stable");
+      await setTag("nyra-base", "stable", value);
+      const res = await call("GET", "/v2/nyra-base/manifests/stable");
       expect(res.status).toBe(500);
       expect(await errorCode(res)).toBe("UNKNOWN");
     },
@@ -234,7 +234,7 @@ describe("manifests", () => {
 describe("blobs", () => {
   it("redirects GET to the public R2 domain", async () => {
     const { layer } = await putImage();
-    const res = await call("GET", `/v2/nyra/blobs/${layer}`);
+    const res = await call("GET", `/v2/nyra-base/blobs/${layer}`);
     expect(res.status).toBe(307);
     expect(res.headers.get("Location")).toBe(`https://blobs.nyraos.com/blobs/sha256/${hexOf(layer)}`);
     expect(res.headers.get("Docker-Content-Digest")).toBe(layer);
@@ -243,7 +243,7 @@ describe("blobs", () => {
 
   it("redirects range requests too (the client re-sends Range to the R2 domain)", async () => {
     const { layer } = await putImage();
-    const res = await call("GET", `/v2/nyra/blobs/${layer}`, { Range: "bytes=0-9" });
+    const res = await call("GET", `/v2/nyra-base/blobs/${layer}`, { Range: "bytes=0-9" });
     expect(res.status).toBe(307);
     expect(res.headers.get("Location")).toBe(`https://blobs.nyraos.com/blobs/sha256/${hexOf(layer)}`);
   });
@@ -251,7 +251,7 @@ describe("blobs", () => {
   it("answers HEAD itself with size and digest", async () => {
     const data = bytes("some layer bytes");
     const digest = await putBlob(data);
-    const res = await call("HEAD", `/v2/nyra/blobs/${digest}`);
+    const res = await call("HEAD", `/v2/nyra-base/blobs/${digest}`);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Length")).toBe(String(data.byteLength));
     expect(res.headers.get("Docker-Content-Digest")).toBe(digest);
@@ -259,16 +259,16 @@ describe("blobs", () => {
   });
 
   it("returns BLOB_UNKNOWN for missing blobs", async () => {
-    const res = await call("GET", `/v2/nyra/blobs/${MISSING}`);
+    const res = await call("GET", `/v2/nyra-base/blobs/${MISSING}`);
     expect(res.status).toBe(404);
     expect(await errorCode(res)).toBe("BLOB_UNKNOWN");
-    expect((await call("HEAD", `/v2/nyra/blobs/${MISSING}`)).status).toBe(404);
+    expect((await call("HEAD", `/v2/nyra-base/blobs/${MISSING}`)).status).toBe(404);
   });
 
   it.each(["sha256:abc", "latest", "sha512:" + "a".repeat(128), "sha256:" + "G".repeat(64)])(
     "rejects bad digest %s",
     async (digest) => {
-      const res = await call("GET", `/v2/nyra/blobs/${digest}`);
+      const res = await call("GET", `/v2/nyra-base/blobs/${digest}`);
       expect(res.status).toBe(400);
       expect(await errorCode(res)).toBe("DIGEST_INVALID");
     },
@@ -278,15 +278,15 @@ describe("blobs", () => {
 describe("tags/list", () => {
   it("lists the tags of one repository, sorted", async () => {
     const { manifest } = await putImage();
-    for (const tag of ["stable", "2026.10.2", "beta", "2026.10.3"]) await pointTag("nyra", tag, manifest);
-    await pointTag("nyra/desktop", "dev", manifest); // a different repository, same KV prefix
-    const res = await call("GET", "/v2/nyra/tags/list");
+    for (const tag of ["stable", "2026.10.2", "beta", "2026.10.3"]) await pointTag("nyra-base", tag, manifest);
+    await pointTag("nyra-base/desktop", "dev", manifest); // a different repository, same KV prefix
+    const res = await call("GET", "/v2/nyra-base/tags/list");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ name: "nyra", tags: ["2026.10.2", "2026.10.3", "beta", "stable"] });
+    expect(await res.json()).toEqual({ name: "nyra-base", tags: ["2026.10.2", "2026.10.3", "beta", "stable"] });
   });
 
   it("returns an empty list for a repository without tags", async () => {
-    expect(await (await call("GET", "/v2/nyra/tags/list")).json()).toEqual({ name: "nyra", tags: [] });
+    expect(await (await call("GET", "/v2/nyra-base/tags/list")).json()).toEqual({ name: "nyra-base", tags: [] });
   });
 });
 
@@ -294,7 +294,7 @@ describe("unexpected errors", () => {
   it("returns 500 and logs no request data when storage fails", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     const broken = { ...env.TAGS, get: () => Promise.reject(new Error("KV down")) } as unknown as KVNamespace;
-    const res = await call("GET", "/v2/nyra/manifests/stable", { Authorization: basic("nyra", "code") }, { TAGS: broken });
+    const res = await call("GET", "/v2/nyra-base/manifests/stable", { Authorization: basic("nyra", "code") }, { TAGS: broken });
     expect(res.status).toBe(500);
     expect(error).toHaveBeenCalledWith("registry: internal error:", "KV down");
   });

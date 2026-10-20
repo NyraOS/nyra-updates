@@ -3,7 +3,7 @@
 # channel sheet"). CI runs it on main after every change of channels/ and once a day (so the
 # sheet never expires); locally it writes the local KV.
 #
-#   scripts/publish-sheet.sh [--remote] nyra:stable     # --remote: the real KV (CI only)
+#   scripts/publish-sheet.sh [--remote] nyra-base:stable     # --remote: the real KV (CI only)
 #
 # The input is only channels/<repo>/<channel>.json and releases.json, as checked out. KV is
 # never read: whatever a KV writer puts there is overwritten, never signed. The sequence is the

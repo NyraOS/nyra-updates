@@ -4,13 +4,13 @@
 # takes effect when it is merged into main: CI then signs the sheet built from main and writes it
 # to KV (publish-sheet.sh). An emergency stop is a commit too.
 #
-#   scripts/rollout.sh set     nyra:stable 2026.10.2     # everybody on 2026.10.2; going back retracts the newer served versions
+#   scripts/rollout.sh set     nyra-base:stable 2026.10.2     # everybody on 2026.10.2; going back retracts the newer served versions
 #                                                         # (also creates the channel)
-#   scripts/rollout.sh start   nyra:stable 2026.10.3 5   # 2026.10.3 to 5% (previous = the current version)
-#   scripts/rollout.sh percent nyra:stable 25            # raise (or resume a stopped rollout at) 25%
-#   scripts/rollout.sh stop    nyra:stable               # nobody new gets it; machines on it keep it
-#   scripts/rollout.sh revert  nyra:stable               # everybody back to the previous version; the current one is retracted
-#   scripts/rollout.sh show    nyra:stable
+#   scripts/rollout.sh start   nyra-base:stable 2026.10.3 5   # 2026.10.3 to 5% (previous = the current version)
+#   scripts/rollout.sh percent nyra-base:stable 25            # raise (or resume a stopped rollout at) 25%
+#   scripts/rollout.sh stop    nyra-base:stable               # nobody new gets it; machines on it keep it
+#   scripts/rollout.sh revert  nyra-base:stable               # everybody back to the previous version; the current one is retracted
+#   scripts/rollout.sh show    nyra-base:stable
 #
 # Versions must be in channels/<repo>/releases.json (version -> digest, written by the
 # publishing job). Only the channels dev, beta and stable. CHANNELS_DIR overrides the directory
