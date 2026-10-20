@@ -32,6 +32,8 @@ unset SHEET_KMS_TOKEN CLOUDFLARE_KV_TOKEN
 die() { echo "publish-sheet: $*" >&2; exit 1; }
 remote=false
 if [ "${1:-}" = --remote ]; then remote=true; shift; fi
+# An unsigned sheet would replace the signed one in KV: local only.
+if $remote && [ "${SHEET_UNSIGNED:-}" = 1 ]; then die "SHEET_UNSIGNED=1 is local only, refusing --remote"; fi
 [ $# -eq 1 ] || die "usage: publish-sheet.sh [--remote] <repo>:<dev|beta|stable>"
 [[ "$1" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:(dev|beta|stable)$ ]] || die "expected <repo>:dev|beta|stable, got $1"
 repo="${1%%:*}" channel="${1##*:}"

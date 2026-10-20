@@ -133,8 +133,8 @@ STUB
 chmod +x "$tmp/bin/curl"
 remote() { # <token> [env...]
   local token="$1"; shift
-  env -u ROLLOUT_KV_DIR -u SHEET_TEST_KEY CURL_LOG="$tmp/curl.log" PATH="$tmp/bin:$PATH" \
-    SHEET_UNSIGNED=1 CLOUDFLARE_KV_TOKEN="$token" "$@" scripts/publish-sheet.sh --remote nyra-base:stable
+  env -u ROLLOUT_KV_DIR CURL_LOG="$tmp/curl.log" PATH="$tmp/bin:$PATH" \
+    CLOUDFLARE_KV_TOKEN="$token" "$@" scripts/publish-sheet.sh --remote nyra-base:stable
 }
 : >"$tmp/curl.log"
 if remote tok-123 >/dev/null 2>&1 && [ "$(grep -c '^ARGV' "$tmp/curl.log")" = 2 ] &&
@@ -147,6 +147,9 @@ else
 fi
 refused "remote without the KV token is refused" remote ""
 refused "remote with an odd token is refused" remote "a b"
+: >"$tmp/curl.log"
+refused "--remote with SHEET_UNSIGNED=1 is refused" remote tok-123 SHEET_UNSIGNED=1
+[ ! -s "$tmp/curl.log" ] || fail "--remote with SHEET_UNSIGNED=1 reached KV"
 
 [ "$failures" -eq 0 ] || { echo "$failures failure(s)" >&2; exit 1; }
 echo "all rollout tests passed"
