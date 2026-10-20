@@ -96,10 +96,10 @@ describe("rolloutGroup", () => {
 describe("tags without a rollout", () => {
   it("serve the same digest with and without an install code", async () => {
     const { manifest } = await putImage();
-    await pointTag("nyra", "stable", manifest);
+    await pointTag("nyra-base", "stable", manifest);
     const variants: Record<string, string>[] = [{}, { Authorization: "Basic Og==" }, { Authorization: basic("nyra", "abc") }];
     for (const auth of variants) {
-      const res = await call("GET", "/v2/nyra/manifests/stable", auth);
+      const res = await call("GET", "/v2/nyra-base/manifests/stable", auth);
       expect(res.headers.get("Docker-Content-Digest")).toBe(manifest);
     }
   });
@@ -116,37 +116,37 @@ describe("the install code is never logged, stored or echoed", () => {
 
     const { manifest, layer } = await putImage();
     const older = await putImage();
-    await pointTag("nyra", "stable", manifest);
+    await pointTag("nyra-base", "stable", manifest);
     // A channel in a staged rollout, so the group is really computed from the code.
-    await setTag("nyra", "beta", JSON.stringify({ digest: manifest, previous: older.manifest, percent: 50 }));
-    await setTag("nyra", "broken", JSON.stringify({ digest: manifest, previous: older.manifest, percent: 500 })); // logs
-    await pointTag("nyra", "dangling", MISSING_DIGEST); // logs an error
-    await setTag("nyra", "corrupt", "not json"); // logs an error
+    await setTag("nyra-base", "beta", JSON.stringify({ digest: manifest, previous: older.manifest, percent: 50 }));
+    await setTag("nyra-base", "broken", JSON.stringify({ digest: manifest, previous: older.manifest, percent: 500 })); // logs
+    await pointTag("nyra-base", "dangling", MISSING_DIGEST); // logs an error
+    await setTag("nyra-base", "corrupt", "not json"); // logs an error
     const tagsBefore = (await env.TAGS.list()).keys.map((k) => k.name);
     const objectsBefore = (await env.IMAGES.list()).objects.map((o) => o.key);
 
     const responses: Response[] = [];
     for (const [method, path] of [
       ["GET", "/v2/"],
-      ["GET", "/v2/nyra/manifests/stable"],
-      ["HEAD", "/v2/nyra/manifests/stable"],
-      ["GET", "/v2/nyra/manifests/beta"],
-      ["HEAD", "/v2/nyra/manifests/beta"],
-      ["GET", "/v2/nyra/manifests/broken"],
-      ["GET", "/v2/nyra/manifests/dangling"],
-      ["GET", "/v2/nyra/manifests/corrupt"],
-      ["GET", "/v2/nyra/manifests/-bad"],
-      ["GET", `/v2/nyra/blobs/${layer}`],
-      ["GET", "/v2/nyra/tags/list"],
-      ["PUT", "/v2/nyra/manifests/stable"],
+      ["GET", "/v2/nyra-base/manifests/stable"],
+      ["HEAD", "/v2/nyra-base/manifests/stable"],
+      ["GET", "/v2/nyra-base/manifests/beta"],
+      ["HEAD", "/v2/nyra-base/manifests/beta"],
+      ["GET", "/v2/nyra-base/manifests/broken"],
+      ["GET", "/v2/nyra-base/manifests/dangling"],
+      ["GET", "/v2/nyra-base/manifests/corrupt"],
+      ["GET", "/v2/nyra-base/manifests/-bad"],
+      ["GET", `/v2/nyra-base/blobs/${layer}`],
+      ["GET", "/v2/nyra-base/tags/list"],
+      ["PUT", "/v2/nyra-base/manifests/stable"],
     ]) {
       responses.push(await call(method!, path!, { Authorization: header }));
     }
     const broken = { ...env.IMAGES, get: () => Promise.reject(new Error("R2 down")) } as unknown as R2Bucket;
-    responses.push(await call("GET", "/v2/nyra/manifests/stable", { Authorization: header }, { IMAGES: broken }));
+    responses.push(await call("GET", "/v2/nyra-base/manifests/stable", { Authorization: header }, { IMAGES: broken }));
     // The same code with a running digest in the user field.
     const withUser = basic("sha256-" + "a".repeat(64), CODE);
-    responses.push(await call("GET", "/v2/nyra/manifests/beta", { Authorization: withUser }));
+    responses.push(await call("GET", "/v2/nyra-base/manifests/beta", { Authorization: withUser }));
 
     expect(logged.length).toBeGreaterThan(0); // the error paths above did log something
     const encoded = header.slice("Basic ".length);

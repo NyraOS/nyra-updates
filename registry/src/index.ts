@@ -22,7 +22,7 @@ import {
 export interface Env {
   IMAGES: R2Bucket;
   TAGS: KVNamespace;
-  /** Comma-separated repositories served, e.g. "nyra". */
+  /** Comma-separated repositories served, e.g. "nyra-base". */
   REPOSITORIES: string;
   /** Where blob downloads are redirected: the public custom domain of the R2 bucket. */
   BLOB_BASE_URL: string;
@@ -217,7 +217,7 @@ async function tagsList(env: Env, method: string, name: string): Promise<Respons
   let cursor: string | undefined;
   do {
     const page = await env.TAGS.list({ prefix, cursor });
-    // "tag/nyra/" is also a prefix of "tag/nyra/desktop/stable" (repository nyra/desktop).
+    // "tag/nyra-base/" is also a prefix of "tag/nyra-base/desktop/stable" (repository nyra-base/desktop).
     tags.push(...page.keys.map((k) => k.name.slice(prefix.length)).filter(isValidTag));
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);

@@ -47,9 +47,9 @@ describe("staged rollout through the Worker", () => {
     at = await codeInGroup(PERCENT);
   });
 
-  const channel = (state: Record<string, unknown>) => setTag("nyra", "stable", JSON.stringify(state));
+  const channel = (state: Record<string, unknown>) => setTag("nyra-base", "stable", JSON.stringify(state));
   const digestFor = async (authorization?: string, method = "GET") => {
-    const res = await call(method, "/v2/nyra/manifests/stable", authorization ? { Authorization: authorization } : {});
+    const res = await call(method, "/v2/nyra-base/manifests/stable", authorization ? { Authorization: authorization } : {});
     expect(res.status).toBe(200);
     return res.headers.get("Docker-Content-Digest");
   };
@@ -80,7 +80,7 @@ describe("staged rollout through the Worker", () => {
 
   it("treats every client as anonymous when the salt secret is missing", async () => {
     await channel({ digest: newImage, previous: oldImage, percent: 99 });
-    const res = await call("GET", "/v2/nyra/manifests/stable", { Authorization: basic("nyra", below) }, { ROLLOUT_SALT: undefined });
+    const res = await call("GET", "/v2/nyra-base/manifests/stable", { Authorization: basic("nyra", below) }, { ROLLOUT_SALT: undefined });
     expect(res.headers.get("Docker-Content-Digest")).toBe(oldImage);
   });
 
@@ -107,12 +107,12 @@ describe("staged rollout through the Worker", () => {
     await channel({ digest: newImage, previous: oldImage, percent: PERCENT });
     for (const method of ["GET", "HEAD"]) {
       for (const auth of [{}, { Authorization: basic("nyra", below) }] as Record<string, string>[]) {
-        const res = await call(method, "/v2/nyra/manifests/stable", auth);
+        const res = await call(method, "/v2/nyra-base/manifests/stable", auth);
         expect(res.headers.get("Cache-Control")).toBe("private, no-store");
       }
     }
     // By digest the answer is the same for everybody, forever.
-    const res = await call("GET", `/v2/nyra/manifests/${newImage}`, { Authorization: basic("nyra", below) });
+    const res = await call("GET", `/v2/nyra-base/manifests/${newImage}`, { Authorization: basic("nyra", below) });
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=31536000, immutable");
   });
 
@@ -120,13 +120,13 @@ describe("staged rollout through the Worker", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     // Group-dependent error: the new digest is missing, so only clients in the rollout get a 404.
     await channel({ digest: "sha256:" + "0".repeat(64), previous: oldImage, percent: PERCENT });
-    await setTag("nyra", "corrupt", "null");
+    await setTag("nyra-base", "corrupt", "null");
     for (const method of ["GET", "HEAD"]) {
       for (const [path, status] of [
-        ["/v2/nyra/manifests/stable", 404], // in the rollout, new digest missing
-        ["/v2/nyra/manifests/nope", 404], // unknown tag
-        ["/v2/nyra/manifests/corrupt", 500], // corrupt state
-        ["/v2/nyra/manifests/-bad", 400], // invalid tag
+        ["/v2/nyra-base/manifests/stable", 404], // in the rollout, new digest missing
+        ["/v2/nyra-base/manifests/nope", 404], // unknown tag
+        ["/v2/nyra-base/manifests/corrupt", 500], // corrupt state
+        ["/v2/nyra-base/manifests/-bad", 400], // invalid tag
       ] as const) {
         const res = await call(method, path, { Authorization: basic("nyra", below) });
         expect(res.status).toBe(status);
@@ -144,10 +144,10 @@ describe("staged rollout through the Worker", () => {
     const get = (path: string) =>
       worker.fetch(new Request(ORIGIN + path, { headers: { Authorization: basic("nyra", below) } }), counting);
     await channel({ digest: newImage, previous: oldImage, percent: PERCENT });
-    const byDigest = await get(`/v2/nyra/manifests/${newImage}`);
+    const byDigest = await get(`/v2/nyra-base/manifests/${newImage}`);
     expect(byDigest.status).toBe(200);
     expect(saltReads).toBe(0);
-    const byTag = await get("/v2/nyra/manifests/stable");
+    const byTag = await get("/v2/nyra-base/manifests/stable");
     expect(byTag.headers.get("Docker-Content-Digest")).toBe(newImage);
     expect(saltReads).toBe(1);
   });
@@ -158,8 +158,8 @@ describe("staged rollout through the Worker", () => {
     ["a string", "sha256:" + "1".repeat(64)],
   ])("returns 500 for a tag whose value is %s", async (_label, value) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    await setTag("nyra", "stable", JSON.stringify(value));
-    const res = await call("GET", "/v2/nyra/manifests/stable");
+    await setTag("nyra-base", "stable", JSON.stringify(value));
+    const res = await call("GET", "/v2/nyra-base/manifests/stable");
     expect(res.status).toBe(500);
     expect(await errorCode(res)).toBe("UNKNOWN");
   });
@@ -175,7 +175,7 @@ describe("staged rollout through the Worker", () => {
   ])("returns 500 for a corrupt rollout state: %s", async (_label, broken) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     await channel({ digest: newImage, previous: oldImage, percent: PERCENT, ...broken });
-    const res = await call("GET", "/v2/nyra/manifests/stable", { Authorization: basic("nyra", below) });
+    const res = await call("GET", "/v2/nyra-base/manifests/stable", { Authorization: basic("nyra", below) });
     expect(res.status).toBe(500);
     expect(await errorCode(res)).toBe("UNKNOWN");
   });

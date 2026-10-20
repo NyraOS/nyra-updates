@@ -37,7 +37,7 @@ describe("local blob origin", () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     const data = bytes("0123456789abcdef");
     const digest = await putBlob(data);
-    const redirect = await get(`/v2/nyra/blobs/${digest}`);
+    const redirect = await get(`/v2/nyra-base/blobs/${digest}`);
     expect(redirect.status).toBe(307);
     const location = redirect.headers.get("Location")!;
     expect(location).toBe(`/_dev/blobs/sha256/${hexOf(digest)}`);

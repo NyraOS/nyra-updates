@@ -60,44 +60,44 @@ rm "$tmp/missing/blobs/sha256/${layer#sha256:}"
 read -r manifest < <(jq -r '.manifests[0].digest' "$tmp/good/index.json")
 layer=$(jq -r '.layers[0].digest' "$tmp/good/blobs/sha256/${manifest#sha256:}")
 
-refused "corrupted blob" publish "$tmp/corrupt" nyra 2026.10.3
-refused "missing layer" publish "$tmp/missing" nyra 2026.10.3
-refused "symlinked blob" publish "$tmp/symlink-blob" nyra 2026.10.3
-refused "symlinked index.json" publish "$tmp/symlink-index" nyra 2026.10.3
+refused "corrupted blob" publish "$tmp/corrupt" nyra-base 2026.10.3
+refused "missing layer" publish "$tmp/missing" nyra-base 2026.10.3
+refused "symlinked blob" publish "$tmp/symlink-blob" nyra-base 2026.10.3
+refused "symlinked index.json" publish "$tmp/symlink-index" nyra-base 2026.10.3
 refused "bad repository" publish "$tmp/good" "Nyra" 2026.10.3
-refused "bad repository path" publish "$tmp/good" "../nyra" 2026.10.3
-refused "bad version" publish "$tmp/good" nyra 2026.10
-refused "bad version (tag-like)" publish "$tmp/good" nyra latest
-refused "not a layout" publish "$tmp" nyra 2026.10.3
+refused "bad repository path" publish "$tmp/good" "../nyra-base" 2026.10.3
+refused "bad version" publish "$tmp/good" nyra-base 2026.10
+refused "bad version (tag-like)" publish "$tmp/good" nyra-base latest
+refused "not a layout" publish "$tmp" nyra-base 2026.10.3
 
-out=$(publish "$tmp/good" nyra 2026.10.3) && ok "publish" || fail "publish"
+out=$(publish "$tmp/good" nyra-base 2026.10.3) && ok "publish" || fail "publish"
 grep -qx 'blobs: 3 uploaded, 0 already present' <<<"$out" && ok "three blobs uploaded" || fail "blobs: $out"
-grep -qx "add to channels/nyra/releases.json:  \"2026.10.3\": \"$manifest\"" <<<"$out" && ok "releases.json line" || fail "releases line: $out"
+grep -qx "add to channels/nyra-base/releases.json:  \"2026.10.3\": \"$manifest\"" <<<"$out" && ok "releases.json line" || fail "releases line: $out"
 repo_root=$PWD
-(cd "$tmp" && "$repo_root/scripts/publish-image.sh" good nyra 2026.10.3) | grep -q 'nothing to do' &&
+(cd "$tmp" && "$repo_root/scripts/publish-image.sh" good nyra-base 2026.10.3) | grep -q 'nothing to do' &&
   ok "same layout, same version: no-op (relative OCI_DIR)" || fail "second publish of the same version"
 make_layout "$tmp/other"
 state_hash() { find "$LOCAL_STATE_DIR" -type f -exec sha256sum {} + | sort | sha256sum; }
 state_before=$(state_hash)
-if publish "$tmp/other" nyra 2026.10.3 >/dev/null 2>&1; then fail "re-pointing a version: accepted"
+if publish "$tmp/other" nyra-base 2026.10.3 >/dev/null 2>&1; then fail "re-pointing a version: accepted"
 elif [ "$state_before" != "$(state_hash)" ]; then fail "re-pointing a version: something was written"
 else ok "another layout under a released version is refused, nothing written"; fi
 make_layout "$tmp/stray"
 printf 'not in the manifest' >"$tmp/stray/blobs/sha256/$(printf 'not in the manifest' | sha256sum | cut -d' ' -f1)"
-out=$(publish "$tmp/stray" nyra 2026.10.5)
+out=$(publish "$tmp/stray" nyra-base 2026.10.5)
 grep -qx 'blobs: 2 uploaded, 1 already present' <<<"$out" && ok "a blob outside the manifest is not uploaded" || fail "stray blob: $out"
 read -r manifest < <(jq -r '.manifests[0].digest' "$tmp/good/index.json") # make_layout overwrote these
 layer=$(jq -r '.layers[0].digest' "$tmp/good/blobs/sha256/${manifest#sha256:}")
-out=$(publish "$tmp/good" nyra 2026.10.4)
+out=$(publish "$tmp/good" nyra-base 2026.10.4)
 grep -qx 'blobs: 0 uploaded, 3 already present' <<<"$out" && ok "existing blobs are not uploaded again" || fail "second publish: $out"
 
 setsid npx wrangler dev --env local --ip 127.0.0.1 --port "$port" --persist-to "$LOCAL_STATE_DIR" >"$tmp/dev.log" 2>&1 &
 dev_pid=$!
 for _ in $(seq 60); do curl -sf -o /dev/null "$registry/v2/" -H 'Authorization: Basic Og==' && break; sleep 1; done
 
-pulled=$(curl -sf "$registry/v2/nyra/manifests/2026.10.3" -H 'Authorization: Basic Og==' | sha256sum | cut -d' ' -f1) || pulled=
+pulled=$(curl -sf "$registry/v2/nyra-base/manifests/2026.10.3" -H 'Authorization: Basic Og==' | sha256sum | cut -d' ' -f1) || pulled=
 [ "sha256:$pulled" = "$manifest" ] && ok "the Worker serves the manifest by version" || fail "manifest by version: $pulled"
-pulled=$(curl -sfL "$registry/v2/nyra/blobs/$layer" | sha256sum | cut -d' ' -f1) || pulled=
+pulled=$(curl -sfL "$registry/v2/nyra-base/blobs/$layer" | sha256sum | cut -d' ' -f1) || pulled=
 [ "sha256:$pulled" = "$layer" ] && ok "the Worker serves the layer" || fail "layer: $pulled"
 
 [ "$failures" -eq 0 ] || { echo "$failures failure(s)" >&2; exit 1; }

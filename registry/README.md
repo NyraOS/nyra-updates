@@ -92,10 +92,10 @@ signed channel sheet"), and nothing in KV is read in order to be signed.
 
 Order matters: **blobs first, the tag last**, so a tag never points to something that is missing.
 
-1. **The image as an OCI layout:** `skopeo copy containers-storage:localhost/nyra:<version> oci:out:<version>`.
+1. **The image as an OCI layout:** `skopeo copy containers-storage:localhost/nyra-base:<version> oci:out:<version>`.
 2. **Blobs to R2 and the version tag to KV, in one script:**
    ```bash
-   scripts/publish-image.sh --remote out nyra 2026.10.3
+   scripts/publish-image.sh --remote out nyra-base 2026.10.3
    ```
    `scripts/publish-image.sh` first checks what the manifest references (the manifest blob, its
    config and its layers: regular files, never symlinks, each against its SHA-256 file name, with
@@ -107,10 +107,10 @@ Order matters: **blobs first, the tag last**, so a tag never points to something
    `Cache-Control: public, max-age=31536000, immutable`, skipping the objects that already exist,
    so nothing is overwritten. The key (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) is an R2 token
    with write permission **only** on the `nyra-images` bucket. Last, it does a HEAD of every
-   object (the size must match) and only then writes `tag/nyra/2026.10.3` to KV
+   object (the size must match) and only then writes `tag/nyra-base/2026.10.3` to KV
    (`CLOUDFLARE_API_TOKEN`, used by wrangler).
 3. **The version-to-digest pair in git:** the script prints the line
-   `"2026.10.3": "sha256:…"`; a commit adds it to `channels/nyra/releases.json` (the script does
+   `"2026.10.3": "sha256:…"`; a commit adds it to `channels/nyra-base/releases.json` (the script does
    not edit that file). **Channels are not written to KV by hand:** promotion to `dev`/`beta`/`stable` and revert are commits to
    the channel files, and CI publishes the signed sheet and the channel tag from them (see
    "Operation").
@@ -253,7 +253,7 @@ channels/<repo>/<channel>.json    {"current": "2026.10.3", "previous": "2026.10.
 
 A channel file cannot say "no release yet" (`valid_state` needs a `current` that is in
 `releases.json`), so a channel has no file until `rollout.sh set` creates it, and CI skips it. Today
-only `channels/nyra/releases.json` exists, empty (`{}`).
+only `channels/nyra-base/releases.json` exists, empty (`{}`).
 
 A rollout change is a **commit** (pull request, review, merge by the coordinator). On `main`, CI
 builds the sheet from these files, signs it and **only writes it** to KV
@@ -265,14 +265,14 @@ KV write. Whatever somebody else writes to KV is overwritten at the next publica
 in review):
 
 ```bash
-scripts/rollout.sh set     nyra:stable 2026.10.2     # everybody on 2026.10.2; going back = retracts the newer served versions; creates the channel
-scripts/rollout.sh start   nyra:stable 2026.10.3 5   # 2026.10.3 at 5%; the current version becomes "previous"
-scripts/rollout.sh percent nyra:stable 25            # raise to 25% (or resume a stopped rollout at 25%)
-scripts/rollout.sh percent nyra:stable 100           # rollout finished; "previous" stays as the revert target
-scripts/rollout.sh stop    nyra:stable               # stop
-scripts/rollout.sh revert  nyra:stable               # revert to "previous"; the current version goes into "retracted"
-scripts/rollout.sh show    nyra:stable
-scripts/publish-sheet.sh   nyra:stable               # CI: the sheet from git → signed → KV (locally: the local KV)
+scripts/rollout.sh set     nyra-base:stable 2026.10.2     # everybody on 2026.10.2; going back = retracts the newer served versions; creates the channel
+scripts/rollout.sh start   nyra-base:stable 2026.10.3 5   # 2026.10.3 at 5%; the current version becomes "previous"
+scripts/rollout.sh percent nyra-base:stable 25            # raise to 25% (or resume a stopped rollout at 25%)
+scripts/rollout.sh percent nyra-base:stable 100           # rollout finished; "previous" stays as the revert target
+scripts/rollout.sh stop    nyra-base:stable               # stop
+scripts/rollout.sh revert  nyra-base:stable               # revert to "previous"; the current version goes into "retracted"
+scripts/rollout.sh show    nyra-base:stable
+scripts/publish-sheet.sh   nyra-base:stable               # CI: the sheet from git → signed → KV (locally: the local KV)
 ```
 
 - **Versions come only from `releases.json`** (in git): `rollout.sh` refuses a version that is
@@ -351,7 +351,7 @@ sheet (no "canonical" JSON problem), and a signature made with the same key for 
 cannot be reused as a sheet. The sheet:
 
 ```json
-{"schema": 1, "repository": "nyra", "channel": "stable",
+{"schema": 1, "repository": "nyra-base", "channel": "stable",
  "sequence": 1791498540, "issued_at": 1791498540, "expires_at": 1792103340,
  "current":  {"digest": "sha256:<hex>", "version": "2026.10.3"},
  "previous": {"digest": "sha256:<hex>", "version": "2026.10.1"},
@@ -543,7 +543,7 @@ publication.
 
 The server-side rollout code **stays for now**: no image has `nyra-updated` yet. It is removed in a
 separate step, once the shipped images verify the sheet and pull the version by digest
-(`updates.nyraos.com/nyra@sha256:…`):
+(`updates.nyraos.com/nyra-base@sha256:…`):
 1. `chooseDigest`, `src/auth.ts` (the install code, the group, the digest from the user), the
    `ROLLOUT_SALT` secret and their tests (`test/rollout.test.ts`, `test/auth.test.ts`);
 2. the `401` challenge on `/v2/` (computers no longer send anything; anonymous clients go straight
@@ -576,9 +576,9 @@ Loading a real image into the local state:
 ```bash
 podman machine ssh skopeo copy --override-arch arm64 \
   docker://docker.io/library/busybox:latest oci:$PWD/.wrangler/oci:busybox
-bash scripts/seed-local.sh .wrangler/oci nyra stable=busybox
-podman machine ssh skopeo inspect --tls-verify=false docker://host.containers.internal:8787/nyra:stable
-podman machine ssh skopeo copy --src-tls-verify=false docker://host.containers.internal:8787/nyra:stable dir:/tmp/bb
+bash scripts/seed-local.sh .wrangler/oci nyra-base stable=busybox
+podman machine ssh skopeo inspect --tls-verify=false docker://host.containers.internal:8787/nyra-base:stable
+podman machine ssh skopeo copy --src-tls-verify=false docker://host.containers.internal:8787/nyra-base:stable dir:/tmp/bb
 ```
 
 ### What was verified locally (8 October 2026)
@@ -592,7 +592,7 @@ podman machine ssh skopeo copy --src-tls-verify=false docker://host.containers.i
   several ranges (`bytes=a-b,c-d`); the local origin then answers with the whole file, and the
   client coped.
 - **bootc from a VM** (TCG emulation): a system installed from one image build, `bootc switch` to
-  `nyra:stable` from the Worker with the channel on the next build → **only 3 layers downloaded
+  `nyra-base:stable` from the Worker with the channel on the next build → **only 3 layers downloaded
   (~51 MB)**, not the 388 MB base layer; a reboot into the new build, then `bootc upgrade`: "No
   changes" (only the manifest and the config requested).
 
@@ -600,7 +600,7 @@ podman machine ssh skopeo copy --src-tls-verify=false docker://host.containers.i
 (`releases.json` with `2026.10.1`–`2026.10.3`), then `rollout.sh set`, `start … 50`, `revert`,
 `start … 25` on the channel file and `publish-sheet.sh` with a throwaway test key
 (`SHEET_TEST_KEY`, openssl) into the local KV. The sheet served by `npm run dev` at
-`/channels/nyra/stable` (`200`, `Cache-Control: public, max-age=60`) is saved in
+`/channels/nyra-base/stable` (`200`, `Cache-Control: public, max-age=60`) is saved in
 `updated/channel-sheet/tests/data/stable.sheet.json` (`NyraOS/nyra-base`) and verified by the Rust
 library (`tests/fixture.rs`): jq + openssl and Rust agree on the envelope, the DSSE encoding and
 the sheet.

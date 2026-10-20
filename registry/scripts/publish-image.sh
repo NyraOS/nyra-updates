@@ -3,8 +3,8 @@
 # every blob to R2 first, the version tag in KV last, so a tag never points to something missing.
 #
 #   scripts/publish-image.sh [--remote] OCI_DIR REPO VERSION
-#   skopeo copy containers-storage:localhost/nyra:2026.10.3 oci:out:2026.10.3
-#   scripts/publish-image.sh --remote out nyra 2026.10.3     # --remote: the real R2 and KV (CI only)
+#   skopeo copy containers-storage:localhost/nyra-base:2026.10.3 oci:out:2026.10.3
+#   scripts/publish-image.sh --remote out nyra-base 2026.10.3     # --remote: the real R2 and KV (CI only)
 #
 # Remote: the `aws` CLI (preinstalled on ubuntu-24.04 runners) against the R2 S3 endpoint, with
 # R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY (a token that can only write nyra-images) for the
