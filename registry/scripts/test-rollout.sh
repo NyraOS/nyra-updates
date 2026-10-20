@@ -122,5 +122,31 @@ fi
 refused "KMS without the trusted public key is refused" \
   env -u SHEET_TEST_KEY SHEET_KMS_KEY=projects/x SHEET_KMS_TOKEN=t scripts/publish-sheet.sh nyra-base:stable
 
+# --remote writes KV through curl (stubbed): the token is only on its stdin, never in an argv or
+# in the environment of curl.
+mkdir "$tmp/bin"
+cat >"$tmp/bin/curl" <<'STUB'
+#!/usr/bin/env bash
+{ echo "ARGV $*"; echo "ENV ${CLOUDFLARE_KV_TOKEN:-unset}"; echo "STDIN $(cat)"; } >>"$CURL_LOG"
+echo '{"success":true}'
+STUB
+chmod +x "$tmp/bin/curl"
+remote() { # <token> [env...]
+  local token="$1"; shift
+  env -u ROLLOUT_KV_DIR -u SHEET_TEST_KEY CURL_LOG="$tmp/curl.log" PATH="$tmp/bin:$PATH" \
+    SHEET_UNSIGNED=1 CLOUDFLARE_KV_TOKEN="$token" "$@" scripts/publish-sheet.sh --remote nyra-base:stable
+}
+: >"$tmp/curl.log"
+if remote tok-123 >/dev/null 2>&1 && [ "$(grep -c '^ARGV' "$tmp/curl.log")" = 2 ] &&
+  grep -q '^STDIN header = "Authorization: Bearer tok-123"$' "$tmp/curl.log" &&
+  ! grep -q 'tok-123' <(grep -v '^STDIN' "$tmp/curl.log") && ! grep -q '^ENV tok' "$tmp/curl.log" &&
+  grep -q '/storage/kv/namespaces/01b69bd7bf0741fd80c0a3b7e0adf3cd/values/sheet%2Fnyra-base%2Fstable' "$tmp/curl.log"; then
+  ok "remote: KV through curl, token only on stdin"
+else
+  fail "remote KV write: $(cat "$tmp/curl.log")"
+fi
+refused "remote without the KV token is refused" remote ""
+refused "remote with an odd token is refused" remote "a b"
+
 [ "$failures" -eq 0 ] || { echo "$failures failure(s)" >&2; exit 1; }
 echo "all rollout tests passed"
