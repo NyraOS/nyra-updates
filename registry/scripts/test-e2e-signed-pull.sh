@@ -102,19 +102,23 @@ scripts/publish-image.sh "$tmp/unsigned" nyra-base 2.0.0 >/dev/null
 setsid npx --no-install wrangler dev --env local --ip "${worker%:*}" --port "${worker#*:}" \
   --var REPOSITORIES:nyra-base,elsewhere --persist-to "$LOCAL_STATE_DIR" >"$tmp/dev.log" 2>&1 &
 pids+=($!)
-for _ in $(seq 60); do curl -sf -o /dev/null "http://$worker/v2/" && break; sleep 1; done
-curl -sf -o /dev/null "http://$worker/v2/" || { cat "$tmp/dev.log" >&2; exit 1; }
+# Without credentials the Worker answers 401 (the Basic challenge): that means it is up.
+worker_up() { [[ $(curl -s -o /dev/null -w '%{http_code}' "http://$worker/v2/") =~ ^(200|401)$ ]]; }
+for _ in $(seq 60); do worker_up && break; sleep 1; done
+worker_up || { cat "$tmp/dev.log" >&2; exit 1; }
 
 # --- Pull through the Worker ------------------------------------------------------------------
+# Like a Nyra machine: the install code is the Basic password.
+creds=nyra:test-install-code
 n=0
 accepted() { # <name> <image>
   n=$((n + 1))
-  if sk copy "docker://$worker/$2" "dir:$tmp/pull-$n" >"$tmp/out" 2>&1; then ok "$1"
+  if sk copy --src-creds "$creds" "docker://$worker/$2" "dir:$tmp/pull-$n" >"$tmp/out" 2>&1; then ok "$1"
   else cat "$tmp/out" >&2; fail "$1: refused"; fi
 }
 refused() { # <name> <image> <the reason skopeo must give>
   n=$((n + 1))
-  if sk copy "docker://$worker/$2" "dir:$tmp/pull-$n" >"$tmp/out" 2>&1; then fail "$1: accepted"
+  if sk copy --src-creds "$creds" "docker://$worker/$2" "dir:$tmp/pull-$n" >"$tmp/out" 2>&1; then fail "$1: accepted"
   elif grep -qF -- "$3" "$tmp/out"; then ok "$1"
   else cat "$tmp/out" >&2; fail "$1: refused for another reason than \"$3\""; fi
 }
@@ -123,7 +127,7 @@ refused "unsigned version tag is refused" nyra-base:2.0.0 "A signature was requi
 refused "signed image under another repository is refused" elsewhere:1.0.0 "is not accepted"
 
 # --- The Worker serves the signature manifest with its mediaType --------------------------------
-curl -s -D "$tmp/headers" -o "$tmp/sig-manifest" "http://$worker/v2/nyra-base/manifests/$sig_tag" \
+curl -s -u "$creds" -D "$tmp/headers" -o "$tmp/sig-manifest" "http://$worker/v2/nyra-base/manifests/$sig_tag" \
   -H 'Accept: application/vnd.oci.image.manifest.v1+json'
 body_type=$(jq -r '.mediaType // empty' "$tmp/sig-manifest")
 status=$(head -1 "$tmp/headers" | cut -d' ' -f2)
