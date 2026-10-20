@@ -30,3 +30,7 @@ jobs:
       - run: npm test
       - run: bash scripts/test-publish-image.sh
       - run: bash scripts/test-rollout.sh
+      # skopeo and the registry program, from Ubuntu's packages (no key or credential is involved).
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends skopeo docker-registry
+        working-directory: .
+      - run: bash scripts/test-e2e-signed-pull.sh
