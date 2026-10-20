@@ -102,13 +102,19 @@ Order matters: **blobs first, the tag last**, so a tag never points to something
    the right sizes) and refuses before uploading anything; other files in the layout are ignored
    and never uploaded. A version that is already released is never re-pointed: if
    `tag/<repo>/<version>` exists with the same digest the script does nothing, with another digest
-   it stops with an error before writing anything. It then uploads the blobs with `aws s3 cp` against the R2 S3
+   it stops with an error before writing anything. The tag is exactly a version or
+   `sha256-<64 lowercase hex>.sig` (the signature of the image with that manifest digest, a cosign
+   one-manifest OCI layout published the same way); channel names and anything else are refused. With
+   `--remote`, a version is written only when the `.sig` tag of its manifest already exists in KV
+   and the signature manifest is in R2: the signature comes before the version tag. It then uploads the blobs with `aws s3 cp` against the R2 S3
    endpoint (the `aws` CLI is preinstalled on the ubuntu-24.04 runners; rclone is not), with
    `Cache-Control: public, max-age=31536000, immutable`, skipping the objects that already exist,
    so nothing is overwritten. The key (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) is an R2 token
    with write permission **only** on the `nyra-images` bucket. Last, it does a HEAD of every
-   object (the size must match) and only then writes `tag/nyra-base/2026.10.3` to KV
-   (`CLOUDFLARE_API_TOKEN`, used by wrangler).
+   object (the size must match) and only then writes `tag/nyra-base/2026.10.3` to KV, through
+   curl to the Cloudflare REST API (`CLOUDFLARE_KV_TOKEN`; the account and `TAGS` namespace IDs are
+   read from `wrangler.toml`). **Remote publishing needs bash, curl, jq and the aws CLI only:** no
+   Node, npm or wrangler (no `npm ci` or `setup-node` in that job); local mode keeps wrangler.
 3. **The version-to-digest pair in git:** the script prints the line
    `"2026.10.3": "sha256:…"`; a commit adds it to `channels/nyra-base/releases.json` (the script does
    not edit that file). **Channels are not written to KV by hand:** promotion to `dev`/`beta`/`stable` and revert are commits to
@@ -119,8 +125,9 @@ Order matters: **blobs first, the tag last**, so a tag never points to something
    and the signatures. The bucket has a lock rule (R2 bucket lock) on `blobs/` (30 days), so that a
    compromised build machine cannot overwrite or delete existing blobs. The job that runs
    `publish-image.sh --remote` must run only on `main`, on GitHub-hosted runners, and holds both
-   the R2 key and the KV token; wrangler is always run with `npx --no-install`, so a missing
-   `npm ci` fails instead of downloading it next to a token.
+   the R2 key and the KV token; each goes only to the process that uses it (the `AWS_*` variables
+   only to `aws`, the KV token only to curl, on stdin as a curl config and never in an argument
+   list), and neither is exported to the rest of the script.
 5. **Deleting** old blobs (the retention rule) is done only for blobs that no kept tag points to
    any more; it is a separate task.
 
