@@ -12,6 +12,7 @@ CI on `main` publishes. Signing keys are never in this repository or on a build 
 
 - `registry/`: the Cloudflare Worker (TypeScript) that serves the images and the channel sheets,
   with its tests and the scripts that edit and sign the channel state. Its README explains the design.
-- `channels/`: will hold the channel states (which version each of dev, beta and stable serves).
+- `channels/`: the channel states: the released versions (`releases.json`) and which version
+  beta and stable serve; dev always serves the newest release (`registry/README.md`, "The dev channel").
 
 Licence: GPL-3.0-or-later (LICENSE).

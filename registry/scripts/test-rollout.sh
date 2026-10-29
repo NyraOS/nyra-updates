@@ -122,6 +122,20 @@ fi
 refused "KMS without the trusted public key is refused" \
   env -u SHEET_TEST_KEY SHEET_KMS_KEY=projects/x SHEET_KMS_TOKEN=t scripts/publish-sheet.sh nyra-base:stable
 
+# dev is the newest release in releases.json (by version number, not by name), with no channel file.
+cp "$CHANNELS_DIR/nyra-base/stable.json" "$tmp/stable-before.json"
+jq --arg d "$(d 10)" '. + {"2026.10.10": $d}' "$CHANNELS_DIR/nyra-base/releases.json" >"$tmp/releases.json"
+mv "$tmp/releases.json" "$CHANNELS_DIR/nyra-base/releases.json"
+scripts/publish-sheet.sh nyra-base:dev >/dev/null 2>&1 || fail "publish dev"
+expect "dev is signed from the newest release" \
+  ".channel == \"dev\" and .current == {digest: \"$(d 10)\", version: \"2026.10.10\"} and .previous == null
+   and .percent == 100 and .halted == false and .retracted == []" \
+  "$(jq -c '.payload | @base64d | fromjson' "$ROLLOUT_KV_DIR/sheet/nyra-base/dev")"
+if [ -e "$CHANNELS_DIR/nyra-base/dev.json" ] || ! cmp -s "$tmp/stable-before.json" "$CHANNELS_DIR/nyra-base/stable.json"; then
+  fail "dev wrote a channel file or changed stable"
+fi
+refused "rollout.sh refuses dev (it has no file)" scripts/rollout.sh set nyra-base:dev 2026.10.1
+
 # --remote writes KV through curl (stubbed): the token is only on its stdin, never in an argv or
 # in the environment of curl.
 mkdir "$tmp/bin"

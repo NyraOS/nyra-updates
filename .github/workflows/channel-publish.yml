@@ -34,7 +34,9 @@ jobs:
           service_account: ${{ vars.SHEET_SIGNER_SA }}
           token_format: access_token
           create_credentials_file: false
-      # A channel without a file has no release yet: there is nothing to sign, so it is skipped.
+      # dev has no file: it is the newest version in releases.json (publish-sheet.sh), signed as
+      # soon as the repository has a release. A beta or stable channel without a file has no
+      # release yet: there is nothing to sign, so it is skipped.
       - name: Publish the sheets
         env:
           SHEET_KMS_KEY: ${{ vars.SHEET_KMS_KEY }}
@@ -44,7 +46,10 @@ jobs:
         run: |
           for dir in channels/*/; do
             repo=$(basename "$dir")
-            for channel in dev beta stable; do
+            if [ "$(jq length "${dir}releases.json")" -gt 0 ]; then
+              registry/scripts/publish-sheet.sh --remote "$repo:dev"
+            fi
+            for channel in beta stable; do
               [ -f "$dir$channel.json" ] || continue
               registry/scripts/publish-sheet.sh --remote "$repo:$channel"
             done

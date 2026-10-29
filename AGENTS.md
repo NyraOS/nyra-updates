@@ -52,7 +52,7 @@ bash scripts/test-e2e-signed-pull.sh
 
 ## Security-sensitive areas
 
-Changes here need a security review before merge: the channel state (`channels/`: it decides which version every machine is offered), the sheet key and signing (`keys/`, `registry/scripts/sign-sheet.sh`, `publish-sheet.sh`), the publishing and deploy workflows and their permissions, `registry/wrangler.toml`, the install-code handling in `registry/src/auth.ts` (the code is never logged, stored or sent back), and the checks the Worker does on manifests and digests. Signing keys are never in this repository or on a build machine. Never put secrets, keys or tokens in the repository, tests or logs; test keys are throwaway.
+Changes here need a security review before merge: the channel state (`channels/`: it decides which version every machine is offered; a new line in `releases.json` puts that version on `dev` at once), the sheet key and signing (`keys/`, `registry/scripts/sign-sheet.sh`, `publish-sheet.sh`), the publishing and deploy workflows and their permissions, `registry/wrangler.toml`, the install-code handling in `registry/src/auth.ts` (the code is never logged, stored or sent back), and the checks the Worker does on manifests and digests. Signing keys are never in this repository or on a build machine. Never put secrets, keys or tokens in the repository, tests or logs; test keys are throwaway.
 
 ## Docs
 

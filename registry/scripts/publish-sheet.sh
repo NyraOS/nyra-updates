@@ -10,7 +10,8 @@
 # token reaches only the process that uses it (the KMS token: sign-sheet.sh; the KV token: curl,
 # on stdin). Without --remote it writes the local wrangler state (no tokens).
 #
-# The input is only channels/<repo>/<channel>.json and releases.json, as checked out. KV is
+# The input is only channels/<repo>/<channel>.json and releases.json, as checked out (dev: only
+# releases.json, see below). KV is
 # never read: whatever a KV writer puts there is overwritten, never signed. The sequence is the
 # Unix time of signing (runs are serialized and take longer than a second).
 # Writes: KV sheet/<repo>/<channel> (the envelope) and tag/<repo>/<channel> (the tag pointer of
@@ -40,7 +41,18 @@ repo="${1%%:*}" channel="${1##*:}"
 
 releases=$(jq -c . "$channels/$repo/releases.json") || die "cannot read $channels/$repo/releases.json"
 jq -e "$rules valid_releases" <<<"$releases" >/dev/null || die "invalid releases.json"
-state=$(jq -c . "$channels/$repo/$channel.json") || die "cannot read $channels/$repo/$channel.json"
+if [ "$channel" = dev ]; then
+  # dev has no file: it is always the newest version recorded in releases.json, so a release
+  # reaches dev with no promotion commit of its own. The input is still only git on main (what a
+  # releases.json commit could do before, a channel-file commit could too). No rollout, previous
+  # version or retractions on dev: a bad dev build is replaced by a newer one. beta and stable
+  # still move only by their own files.
+  [ "$(jq length <<<"$releases")" -gt 0 ] || die "no release in releases.json yet: nothing to put on dev"
+  state=$(jq -c "$rules"' {current: (keys | sort_by(vkey) | last), previous: null, percent: 100,
+    halted: false, retracted: []}' <<<"$releases")
+else
+  state=$(jq -c . "$channels/$repo/$channel.json") || die "cannot read $channels/$repo/$channel.json"
+fi
 jq -e --argjson r "$releases" "$rules valid_state(\$r)" <<<"$state" >/dev/null || die "invalid channel file: $state"
 
 now=$(date +%s)
