@@ -324,20 +324,23 @@ scripts/publish-sheet.sh   nyra-base:stable               # CI: the sheet from g
 
 `dev` is for test machines: it should offer every release published from `main` as soon as it is
 out, with no promotion step per version. So it has no channel file: `publish-sheet.sh` builds its
-state from `releases.json` alone, `{"current": <the newest version>, "previous": null, "percent":
-100, "halted": false, "retracted": []}` (newest by version number), and `channel-publish.yml` signs
-it for every repository that has a release. Recording a published release in `releases.json` is
-therefore what moves `dev`; `beta` and `stable` move only by their own files, as before.
-`rollout.sh` refuses `dev`.
+state from `releases.json`, `{"current": <the newest version that is not retracted>, "previous":
+null, "percent": 100, "halted": false, "retracted": <the versions retracted on beta or stable>}`
+(newest by version number), and `channel-publish.yml` signs it for every repository that has a
+release. Recording a published release in `releases.json` is therefore what moves `dev`; `beta` and
+`stable` move only by their own files, as before. `rollout.sh` refuses `dev`, `publish-sheet.sh`
+refuses a `dev.json` (it would look like a pin that nothing reads), and a repository whose every
+release is retracted gets no `dev` sheet (the publication fails).
 
 - **Nothing new is trusted.** The signer still reads only git on `main`, never KV, with the same
   key, job and permissions. CI never commits: the release line reaches `main` by a reviewed pull
   request like any change to `channels/`, so a `releases.json` change is a promotion to `dev` and
   is reviewed as one (its digest must be the one printed by the publishing job). Whoever could
   commit a `releases.json` line could already commit a channel file.
-- **No rollout on `dev`:** a bad `dev` build is replaced by a newer one. Taking the newest line out
-  of `releases.json` moves `dev` back, and machines that took it refuse the step down (`Downgrade`)
-  and stay where they are: safe, and fixed by the next release.
+- **Withdrawing a bad build:** retract it on `beta` or `stable` (`rollout.sh revert`, or `set` to an
+  older version), or publish a newer one. `dev` then serves the newest release that is not
+  retracted, and machines that took the bad one step back to it (`Retract`). There is no gradual
+  rollout on `dev`.
 
 ### Local proof (8 October 2026, with the script of that time, which took digests)
 

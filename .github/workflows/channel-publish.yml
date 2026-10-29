@@ -46,7 +46,9 @@ jobs:
         run: |
           for dir in channels/*/; do
             repo=$(basename "$dir")
-            if [ "$(jq length "${dir}releases.json")" -gt 0 ]; then
+            # On its own line: a missing or broken releases.json fails the job instead of skipping dev.
+            releases=$(jq length "${dir}releases.json")
+            if [ "$releases" -gt 0 ]; then
               registry/scripts/publish-sheet.sh --remote "$repo:dev"
             fi
             for channel in beta stable; do

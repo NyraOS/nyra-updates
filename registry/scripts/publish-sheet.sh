@@ -44,12 +44,21 @@ jq -e "$rules valid_releases" <<<"$releases" >/dev/null || die "invalid releases
 if [ "$channel" = dev ]; then
   # dev has no file: it is always the newest version recorded in releases.json, so a release
   # reaches dev with no promotion commit of its own. The input is still only git on main (what a
-  # releases.json commit could do before, a channel-file commit could too). No rollout, previous
-  # version or retractions on dev: a bad dev build is replaced by a newer one. beta and stable
-  # still move only by their own files.
-  [ "$(jq length <<<"$releases")" -gt 0 ] || die "no release in releases.json yet: nothing to put on dev"
-  state=$(jq -c "$rules"' {current: (keys | sort_by(vkey) | last), previous: null, percent: 100,
-    halted: false, retracted: []}' <<<"$releases")
+  # releases.json commit could do before, a channel-file commit could too). No rollout and no
+  # previous version on dev. beta and stable still move only by their own files.
+  # A dev.json would look like a pin that nothing reads: refused, so nobody relies on it.
+  [ ! -e "$channels/$repo/dev.json" ] || die "$channels/$repo/dev.json exists: dev has no channel file, remove it"
+  # A version retracted on beta or stable is retracted on dev too: dev skips it (it serves the newest
+  # release that is not retracted), and machines that took it may step back to that one (Retract).
+  retracted='[]'
+  for other in beta stable; do
+    [ -f "$channels/$repo/$other.json" ] || continue
+    retracted=$(jq -c --argjson r "$retracted" '$r + .retracted | unique' "$channels/$repo/$other.json") ||
+      die "cannot read the retracted versions of $channels/$repo/$other.json"
+  done
+  state=$(jq -c --argjson x "$retracted" "$rules"' {current: ([keys[] | select(. as $v | $x | index($v) | not)]
+    | sort_by(vkey) | last), previous: null, percent: 100, halted: false, retracted: $x}' <<<"$releases")
+  [ "$(jq -r .current <<<"$state")" != null ] || die "no release in releases.json that is not retracted: nothing to put on dev"
 else
   state=$(jq -c . "$channels/$repo/$channel.json") || die "cannot read $channels/$repo/$channel.json"
 fi
