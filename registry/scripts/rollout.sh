@@ -13,8 +13,8 @@
 #   scripts/rollout.sh show    nyra-base:stable
 #
 # Versions must be in channels/<repo>/releases.json (version -> digest, written by the
-# publishing job). Only the channels dev, beta and stable. CHANNELS_DIR overrides the directory
-# (tests).
+# publishing job). Only the channels beta and stable: dev has no file, it is always the newest
+# version in releases.json (publish-sheet.sh). CHANNELS_DIR overrides the directory (tests).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 channels="${CHANNELS_DIR:-../channels}"
@@ -25,6 +25,7 @@ die() { echo "rollout: $*" >&2; exit 1; }
 cmd="$1" ref="$2"; shift 2
 [[ "$ref" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:(dev|beta|stable)$ ]] || die "expected <repo>:dev|beta|stable, got $ref"
 repo="${ref%%:*}" channel="${ref##*:}"
+[ "$channel" != dev ] || die "dev follows the newest version in releases.json; it has no channel file to edit"
 file="$channels/$repo/$channel.json"
 releases_file="$channels/$repo/releases.json"
 

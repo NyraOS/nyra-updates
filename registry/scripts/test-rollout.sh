@@ -122,6 +122,34 @@ fi
 refused "KMS without the trusted public key is refused" \
   env -u SHEET_TEST_KEY SHEET_KMS_KEY=projects/x SHEET_KMS_TOKEN=t scripts/publish-sheet.sh nyra-base:stable
 
+# dev is the newest release in releases.json (by version number, not by name), with no channel file.
+cp "$CHANNELS_DIR/nyra-base/stable.json" "$tmp/stable-before.json"
+jq --arg d "$(d 10)" '. + {"2026.10.10": $d}' "$CHANNELS_DIR/nyra-base/releases.json" >"$tmp/releases.json"
+mv "$tmp/releases.json" "$CHANNELS_DIR/nyra-base/releases.json"
+scripts/publish-sheet.sh nyra-base:dev >/dev/null 2>&1 || fail "publish dev"
+expect "dev is signed from the newest release, with stable's retraction (2026.10.2)" \
+  ".channel == \"dev\" and .current == {digest: \"$(d 10)\", version: \"2026.10.10\"} and .previous == null
+   and .percent == 100 and .halted == false and .retracted == [\"$(d 2)\"]" \
+  "$(jq -c '.payload | @base64d | fromjson' "$ROLLOUT_KV_DIR/sheet/nyra-base/dev")"
+if [ -e "$CHANNELS_DIR/nyra-base/dev.json" ] || ! cmp -s "$tmp/stable-before.json" "$CHANNELS_DIR/nyra-base/stable.json"; then
+  fail "dev wrote a channel file or changed stable"
+fi
+refused "rollout.sh refuses dev (it has no file)" scripts/rollout.sh set nyra-base:dev 2026.10.1
+# stable here: 2026.10.4 at 10%, 2026.10.1 previous, 2026.10.2 retracted. Retract 2026.10.10 on beta.
+printf '{"current": "2026.10.5", "previous": null, "percent": 100, "halted": false, "retracted": ["2026.10.10"]}\n' \
+  >"$CHANNELS_DIR/nyra-base/beta.json"
+scripts/publish-sheet.sh nyra-base:dev >/dev/null 2>&1 || fail "publish dev with retractions"
+expect "dev skips the versions retracted on beta and stable, and lists them" \
+  ".current == {digest: \"$(d 5)\", version: \"2026.10.5\"} and .retracted == [\"$(d 2)\", \"$(d 10)\"]" \
+  "$(jq -c '.payload | @base64d | fromjson' "$ROLLOUT_KV_DIR/sheet/nyra-base/dev")"
+cp "$CHANNELS_DIR/nyra-base/releases.json" "$tmp/releases.json"
+jq -c '{"2026.10.2": ."2026.10.2", "2026.10.10": ."2026.10.10"}' "$tmp/releases.json" >"$CHANNELS_DIR/nyra-base/releases.json"
+refused "dev with every release retracted is not signed" scripts/publish-sheet.sh nyra-base:dev
+cp "$tmp/releases.json" "$CHANNELS_DIR/nyra-base/releases.json"
+echo '{}' >"$CHANNELS_DIR/nyra-base/dev.json"
+refused "a dev.json is refused, not ignored" scripts/publish-sheet.sh nyra-base:dev
+rm "$CHANNELS_DIR/nyra-base/dev.json" "$CHANNELS_DIR/nyra-base/beta.json"
+
 # --remote writes KV through curl (stubbed): the token is only on its stdin, never in an argv or
 # in the environment of curl.
 mkdir "$tmp/bin"

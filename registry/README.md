@@ -122,9 +122,10 @@ Order matters: **blobs first, the tag last**, so a tag never points to something
    Node, npm or wrangler (no `npm ci` or `setup-node` in that job); local mode keeps wrangler.
 3. **The version-to-digest pair in git:** the script prints the line
    `"2026.10.3": "sha256:…"`; a commit adds it to `channels/nyra-base/releases.json` (the script does
-   not edit that file). **Channels are not written to KV by hand:** promotion to `dev`/`beta`/`stable` and revert are commits to
-   the channel files, and CI publishes the signed sheet and the channel tag from them (see
-   "Operation").
+   not edit that file). That commit also puts the release on `dev`, which always follows the
+   newest recorded release (see "The dev channel"). **Channels are not written to KV by hand:**
+   promotion to `beta`/`stable` and revert are commits to the channel files, and CI publishes the
+   signed sheet and the channel tag from them (see "Operation").
 4. **Who writes what:** the build machine may upload blobs (they are content-addressed, and the
    client verifies the digest), but **only the signing job on the GitHub runners** writes the tags
    and the signatures. The bucket has a lock rule (R2 bucket lock) on `blobs/` (30 days), so that a
@@ -264,8 +265,8 @@ channels/<repo>/<channel>.json    {"current": "2026.10.3", "previous": "2026.10.
 ```
 
 A channel file cannot say "no release yet" (`valid_state` needs a `current` that is in
-`releases.json`), so a channel has no file until `rollout.sh set` creates it, and CI skips it. Today
-only `channels/nyra-base/releases.json` exists, empty (`{}`).
+`releases.json`), so a channel has no file until `rollout.sh set` creates it, and CI skips it.
+`dev` never has a file (see "The dev channel").
 
 A rollout change is a **commit** (pull request, review, merge by the coordinator). On `main`, CI
 builds the sheet from these files, signs it and **only writes it** to KV
@@ -318,6 +319,28 @@ scripts/publish-sheet.sh   nyra-base:stable               # CI: the sheet from g
   generated at that moment: the `rollout.sh` scenarios, the signed sheet (verified with openssl),
   **a state and a version tag injected into KV do not reach signing**, an invalid state is not
   signed, the refusal without a signer.
+
+### The dev channel
+
+`dev` is for test machines: it should offer every release published from `main` as soon as it is
+out, with no promotion step per version. So it has no channel file: `publish-sheet.sh` builds its
+state from `releases.json`, `{"current": <the newest version that is not retracted>, "previous":
+null, "percent": 100, "halted": false, "retracted": <the versions retracted on beta or stable>}`
+(newest by version number), and `channel-publish.yml` signs it for every repository that has a
+release. Recording a published release in `releases.json` is therefore what moves `dev`; `beta` and
+`stable` move only by their own files, as before. `rollout.sh` refuses `dev`, `publish-sheet.sh`
+refuses a `dev.json` (it would look like a pin that nothing reads), and a repository whose every
+release is retracted gets no `dev` sheet (the publication fails).
+
+- **Nothing new is trusted.** The signer still reads only git on `main`, never KV, with the same
+  key, job and permissions. CI never commits: the release line reaches `main` by a reviewed pull
+  request like any change to `channels/`, so a `releases.json` change is a promotion to `dev` and
+  is reviewed as one (its digest must be the one printed by the publishing job). Whoever could
+  commit a `releases.json` line could already commit a channel file.
+- **Withdrawing a bad build:** retract it on `beta` or `stable` (`rollout.sh revert`, or `set` to an
+  older version), or publish a newer one. `dev` then serves the newest release that is not
+  retracted, and machines that took the bad one step back to it (`Retract`). There is no gradual
+  rollout on `dev`.
 
 ### Local proof (8 October 2026, with the script of that time, which took digests)
 

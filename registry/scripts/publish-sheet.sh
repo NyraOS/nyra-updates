@@ -10,7 +10,8 @@
 # token reaches only the process that uses it (the KMS token: sign-sheet.sh; the KV token: curl,
 # on stdin). Without --remote it writes the local wrangler state (no tokens).
 #
-# The input is only channels/<repo>/<channel>.json and releases.json, as checked out. KV is
+# The input is only channels/<repo>/<channel>.json and releases.json, as checked out (dev: only
+# releases.json, see below). KV is
 # never read: whatever a KV writer puts there is overwritten, never signed. The sequence is the
 # Unix time of signing (runs are serialized and take longer than a second).
 # Writes: KV sheet/<repo>/<channel> (the envelope) and tag/<repo>/<channel> (the tag pointer of
@@ -40,7 +41,27 @@ repo="${1%%:*}" channel="${1##*:}"
 
 releases=$(jq -c . "$channels/$repo/releases.json") || die "cannot read $channels/$repo/releases.json"
 jq -e "$rules valid_releases" <<<"$releases" >/dev/null || die "invalid releases.json"
-state=$(jq -c . "$channels/$repo/$channel.json") || die "cannot read $channels/$repo/$channel.json"
+if [ "$channel" = dev ]; then
+  # dev has no file: it is always the newest version recorded in releases.json, so a release
+  # reaches dev with no promotion commit of its own. The input is still only git on main (what a
+  # releases.json commit could do before, a channel-file commit could too). No rollout and no
+  # previous version on dev. beta and stable still move only by their own files.
+  # A dev.json would look like a pin that nothing reads: refused, so nobody relies on it.
+  [ ! -e "$channels/$repo/dev.json" ] || die "$channels/$repo/dev.json exists: dev has no channel file, remove it"
+  # A version retracted on beta or stable is retracted on dev too: dev skips it (it serves the newest
+  # release that is not retracted), and machines that took it may step back to that one (Retract).
+  retracted='[]'
+  for other in beta stable; do
+    [ -f "$channels/$repo/$other.json" ] || continue
+    retracted=$(jq -c --argjson r "$retracted" '$r + .retracted | unique' "$channels/$repo/$other.json") ||
+      die "cannot read the retracted versions of $channels/$repo/$other.json"
+  done
+  state=$(jq -c --argjson x "$retracted" "$rules"' {current: ([keys[] | select(. as $v | $x | index($v) | not)]
+    | sort_by(vkey) | last), previous: null, percent: 100, halted: false, retracted: $x}' <<<"$releases")
+  [ "$(jq -r .current <<<"$state")" != null ] || die "no release in releases.json that is not retracted: nothing to put on dev"
+else
+  state=$(jq -c . "$channels/$repo/$channel.json") || die "cannot read $channels/$repo/$channel.json"
+fi
 jq -e --argjson r "$releases" "$rules valid_state(\$r)" <<<"$state" >/dev/null || die "invalid channel file: $state"
 
 now=$(date +%s)
