@@ -103,6 +103,43 @@ describe("repository names", () => {
     }
   });
 
+  it("serves the desktop repositories with tags of their own, apart from the base ones", async () => {
+    const { manifest } = await putImage();
+    for (const name of ["nyra-desktop", "nyra-desktop-arm64"]) {
+      await pointTag(name, "stable", manifest);
+      const res = await call("GET", `/v2/${name}/manifests/stable`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Docker-Content-Digest")).toBe(manifest);
+    }
+    // A tag of one repository is never found under another.
+    for (const name of ["nyra-base", "nyra-base-arm64"]) {
+      expect((await call("GET", `/v2/${name}/manifests/stable`)).status).toBe(404);
+    }
+    for (const name of ["nyra-desktop", "nyra-desktop-arm64"]) {
+      await pointTag(name, "beta", manifest);
+    }
+    expect((await call("GET", "/v2/nyra-desktop/manifests/beta")).status).toBe(200);
+    expect((await call("GET", "/v2/nyra-base/manifests/beta")).status).toBe(404);
+  });
+
+  it("refuses lookalikes and path tricks of the desktop names", async () => {
+    const { manifest } = await putImage();
+    await pointTag("nyra-desktop", "stable", manifest);
+    const names = [
+      "nyra-desktop-x86", "nyra-desktop-arm", "nyra-desktop-arm64-x", "nyra-desktops", "nyra-desktop64",
+      "nyra-desktop/arm64", "nyra-desktop%2Farm64", "nyra-desktop%2F..%2Fnyra-base", "nyra-desktop-arm64%00",
+      "Nyra-Desktop", "nyra_desktop", "nyra-desktop.", "%6Eyra-desktop-%61rm64", "nyra-desktop-arm64%20",
+    ];
+    for (const name of names) {
+      const res = await call("GET", `/v2/${name}/manifests/stable`);
+      expect(res.status, name).toBeGreaterThanOrEqual(400);
+      expect(res.status, name).toBeLessThan(500);
+    }
+    for (const name of ["nyra-desktop-x86", "nyra-desktop%2F..%2Fnyra-base"]) {
+      expect((await call("GET", `/channels/${name}/stable`)).status, name).toBeGreaterThanOrEqual(400);
+    }
+  });
+
   it("serves nested names listed in REPOSITORIES", async () => {
     const { manifest } = await putImage();
     await pointTag("nyra-base/desktop", "stable", manifest);

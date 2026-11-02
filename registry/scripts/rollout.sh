@@ -26,12 +26,15 @@ cmd="$1" ref="$2"; shift 2
 [[ "$ref" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:(dev|beta|stable)$ ]] || die "expected <repo>:dev|beta|stable, got $ref"
 repo="${ref%%:*}" channel="${ref##*:}"
 [ "$channel" != dev ] || die "dev follows the newest version in releases.json; it has no channel file to edit"
+source scripts/repositories.sh
+require_served_repository "$repo"
 file="$channels/$repo/$channel.json"
 releases_file="$channels/$repo/releases.json"
 
 [ -f "$releases_file" ] || die "no $releases_file"
 releases=$(jq -c . "$releases_file")
 jq -e "$rules valid_releases" <<<"$releases" >/dev/null || die "invalid $releases_file"
+require_digests_of_one_repository "$repo" "$releases" "$channels"
 valid() { jq -e --argjson r "$releases" "$rules valid_state(\$r)" <<<"$1" >/dev/null 2>&1; }
 newer() { jq -en --arg a "$1" --arg b "$2" "$rules (\$a | vkey) > (\$b | vkey)" >/dev/null; } # $1 > $2
 release() {

@@ -150,6 +150,38 @@ echo '{}' >"$CHANNELS_DIR/nyra-base/dev.json"
 refused "a dev.json is refused, not ignored" scripts/publish-sheet.sh nyra-base:dev
 rm "$CHANNELS_DIR/nyra-base/dev.json" "$CHANNELS_DIR/nyra-base/beta.json"
 
+# --- The desktop repositories: served names only, and a digest belongs to one repository ----------
+for name in nyra-desktop nyra-desktop-arm64; do
+  mkdir -p "$CHANNELS_DIR/$name"
+  printf '{"2026.11.1": "%s"}\n' "$(d "$(( ${#name} + 100 ))")" >"$CHANNELS_DIR/$name/releases.json"
+  run set "$name:stable" 2026.11.1 && ok "$name:stable can be set" || fail "$name:stable set"
+  scripts/publish-sheet.sh "$name:dev" >/dev/null 2>&1 && scripts/publish-sheet.sh "$name:stable" >/dev/null 2>&1 &&
+    expect "$name sheet names its own repository" ".repository == \"$name\"" \
+      "$(jq -c '.payload | @base64d | fromjson' "$ROLLOUT_KV_DIR/sheet/$name/stable")" || fail "$name: sheet not written"
+done
+# The refusal must come from the allow-list, not from a missing file: say why in the message.
+refused_name() { # <script> <args...>
+  local out
+  if out=$("$@" 2>&1); then fail "accepted: $*"
+  elif grep -qE 'not served|expected <repo>' <<<"$out"; then ok "refused by name: ${*:2}"
+  else fail "refused for another reason: $*: $out"; fi
+}
+for bad in nyra-desktop-x86 nyra-desktop-arm nyra-desktop-arm64-x nyra-desktops Nyra-Desktop nyra_desktop \
+  nyra-desktop-arm64. nyra-desktop/../nyra-base nyra-desktop/arm64 .nyra-desktop nyra-desktop..x nyra; do
+  refused_name scripts/rollout.sh set "$bad:stable" 2026.10.1
+  refused_name scripts/publish-sheet.sh "$bad:dev"
+done
+[ -z "$(find "$CHANNELS_DIR" -mindepth 1 -maxdepth 1 \! -name 'nyra-base*' \! -name 'nyra-desktop' \! -name 'nyra-desktop-arm64')" ] ||
+  fail "a refused name created a directory"
+# A base digest released under the desktop (or the desktop's under the base) is refused in both scripts.
+cp "$CHANNELS_DIR/nyra-desktop-arm64/releases.json" "$tmp/desktop-releases.json"
+printf '{"2026.11.1": "%s"}\n' "$(d 2)" >"$CHANNELS_DIR/nyra-desktop-arm64/releases.json" # nyra-base's 2026.10.2 digest
+refused "a base digest under nyra-desktop-arm64 is refused (rollout)" scripts/rollout.sh set nyra-desktop-arm64:stable 2026.11.1
+refused "a base digest under nyra-desktop-arm64 is refused (sheet)" scripts/publish-sheet.sh nyra-desktop-arm64:dev
+refused "the same digest is refused from the base side too" scripts/publish-sheet.sh nyra-base:dev
+cp "$tmp/desktop-releases.json" "$CHANNELS_DIR/nyra-desktop-arm64/releases.json"
+scripts/publish-sheet.sh nyra-base:dev >/dev/null 2>&1 && ok "the base is signed again once the clash is gone" || fail "base blocked after the fix"
+
 # --remote writes KV through curl (stubbed): the token is only on its stdin, never in an argv or
 # in the environment of curl.
 mkdir "$tmp/bin"
