@@ -28,11 +28,18 @@ Checks done by the Worker:
 - An object larger than 4 MiB, or one that is not a known manifest (a layer, a config), is not
   served as a manifest and is not read.
 - The repository name must be in `REPOSITORIES`; the only accepted digests are `sha256`.
-- Two repositories are served: `nyra-base` (amd64) and `nyra-base-arm64` (arm64), in both
-  environments of `wrangler.toml`; `publish-image.sh` refuses any other name. The digests in
+- Four repositories are served: `nyra-base` (amd64), `nyra-base-arm64` (arm64) and the desktop
+  images `nyra-desktop` (amd64) and `nyra-desktop-arm64` (arm64), in both environments of
+  `wrangler.toml`. That `REPOSITORIES` line in `[vars]` is the one list: `publish-image.sh`,
+  `publish-sheet.sh` and `rollout.sh` read it (`scripts/repositories.sh`) and refuse any other name
+  before a path is built from it (no prefix, case or `/` handling: a name matches whole or not at all).
+  The channel state of each is `channels/<repo>/releases.json` and `stable.json`. The digests in
   `channels/nyra-base-arm64/releases.json` come only from the arm64 publish summary: a signature
   made for one repository is not accepted under the other, and a wrong-architecture digest is
-  refused by the client's `matchRepository`.
+  refused by the client's `matchRepository`. The same digest may not be released under two
+  repositories (`publish-sheet.sh` and `rollout.sh` refuse it), so a base image cannot be offered
+  as the desktop or the reverse. Which signer each repository needs is the client's policy
+  (`policy.json` in `NyraOS/nyra-base`), not this repository's.
 - Layers are not verified by the Worker (they do not pass through it); **the client verifies the
   digest** of everything it downloads, and the image signature (cosign) covers the manifest.
 

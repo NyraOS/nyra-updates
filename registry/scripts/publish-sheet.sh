@@ -38,9 +38,12 @@ if $remote && [ "${SHEET_UNSIGNED:-}" = 1 ]; then die "SHEET_UNSIGNED=1 is local
 [ $# -eq 1 ] || die "usage: publish-sheet.sh [--remote] <repo>:<dev|beta|stable>"
 [[ "$1" =~ ^[a-z0-9]+([._-][a-z0-9]+)*:(dev|beta|stable)$ ]] || die "expected <repo>:dev|beta|stable, got $1"
 repo="${1%%:*}" channel="${1##*:}"
+source scripts/repositories.sh
+require_served_repository "$repo"
 
 releases=$(jq -c . "$channels/$repo/releases.json") || die "cannot read $channels/$repo/releases.json"
 jq -e "$rules valid_releases" <<<"$releases" >/dev/null || die "invalid releases.json"
+require_digests_of_one_repository "$repo" "$releases" "$channels"
 if [ "$channel" = dev ]; then
   # dev has no file: it is always the newest version recorded in releases.json, so a release
   # reaches dev with no promotion commit of its own. The input is still only git on main (what a

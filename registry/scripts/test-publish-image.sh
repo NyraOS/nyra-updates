@@ -69,6 +69,10 @@ refused "bad repository" publish "$tmp/good" "Nyra" 2026.10.3
 refused "repository not in the allow-list" publish "$tmp/good" nyra-base-x86 2026.10.3
 refused "repository not in the allow-list (nyra)" publish "$tmp/good" nyra 2026.10.3
 refused "bad repository path" publish "$tmp/good" "../nyra-base" 2026.10.3
+for lookalike in nyra-desktop-x86 nyra-desktop-arm nyra-desktop-arm64-x nyra-desktops nyra-desktop/arm64 \
+  Nyra-Desktop nyra_desktop "nyra-desktop-arm64 " "nyra-desktop-arm64/" "nyra-desktop/../nyra-base" nyra-desktop-arm64..; do
+  refused "repository not in the allow-list ($lookalike)" publish "$tmp/good" "$lookalike" 2026.10.3
+done
 refused "bad version" publish "$tmp/good" nyra-base 2026.10
 refused "bad version (tag-like)" publish "$tmp/good" nyra-base latest
 refused "not a layout" publish "$tmp" nyra-base 2026.10.3
@@ -99,6 +103,10 @@ read -r manifest < <(jq -r '.manifests[0].digest' "$tmp/good/index.json") # make
 layer=$(jq -r '.layers[0].digest' "$tmp/good/blobs/sha256/${manifest#sha256:}")
 out=$(publish "$tmp/good" nyra-base 2026.10.4)
 grep -qx 'blobs: 0 uploaded, 3 already present' <<<"$out" && ok "existing blobs are not uploaded again" || fail "second publish: $out"
+for desktop in nyra-desktop nyra-desktop-arm64; do
+  publish "$tmp/good" $desktop 2026.11.1 | grep -qx "add to channels/$desktop/releases.json:  \"2026.11.1\": \"$manifest\"" &&
+    ok "publish to $desktop" || fail "publish to $desktop"
+done
 
 # --- Remote mode, with stub curl and aws in front of PATH: files in $stub are the KV and R2 ------
 stub="$tmp/stub"
