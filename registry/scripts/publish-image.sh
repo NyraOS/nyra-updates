@@ -161,8 +161,12 @@ uploaded=0 skipped=0
 for key in "${keys[@]}"; do
   # Content-addressed: an existing key already holds the same bytes.
   if size_of "$key" >/dev/null; then skipped=$((skipped + 1)); continue; fi
-  put "$key" "$layout/$key"
-  uploaded=$((uploaded + 1))
+  # The bucket refuses to overwrite (object lock): a refused put of a key that is there with the
+  # right size is not a failure. This also covers a lookup above that failed for another reason
+  # than the key being absent. Anything else still stops here, before any tag is written.
+  if put "$key" "$layout/$key"; then uploaded=$((uploaded + 1))
+  elif [ "$(size_of "$key")" = "$(stat -c %s "$layout/$key")" ]; then skipped=$((skipped + 1))
+  else die "cannot upload $key"; fi
 done
 echo "blobs: $uploaded uploaded, $skipped already present"
 

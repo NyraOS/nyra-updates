@@ -152,9 +152,15 @@ env >>"$STUB/aws.env"
 args=("$@")
 if [ "$1 $2" = "s3api head-object" ]; then
   for i in "${!args[@]}"; do [ "${args[i]}" = --key ] && key=${args[i + 1]}; done
+  # head-fails: the next lookup fails once although the object is there.
+  [ ! -e "$STUB/head-fails" ] || { rm "$STUB/head-fails"; exit 254; }
   stat -c %s "$STUB/r2/$(basename "$key")"
 else
-  cp "${args[-2]}" "$STUB/r2/$(basename "${args[-1]}")"
+  target="$STUB/r2/$(basename "${args[-1]}")"
+  # put-fails: every upload fails. An existing key is refused, as the bucket's object lock does.
+  [ ! -e "$STUB/put-fails" ] || exit 1
+  [ ! -e "$target" ] || { echo "upload failed: ObjectLockedByBucketPolicy" >&2; exit 1; }
+  cp "${args[-2]}" "$target"
 fi
 STUB
 chmod +x "$stub/bin/curl" "$stub/bin/aws"
@@ -191,6 +197,21 @@ make_layout "$tmp/dangling"
 dangling=$(manifest_of "$tmp/dangling")
 printf 'tag/nyra-base/sha256-%s.sig\t{"digest":"sha256:%s"}\n' "${dangling#sha256:}" "$(printf 'b%.0s' $(seq 64))" >>"$stub/kv.tsv"
 remote_refused "remote: a signature whose manifest is not in R2" remote "$tmp/dangling" nyra-base 2026.11.2
+
+# A lookup that fails for a blob that is there makes the upload hit the object lock: not a failure.
+make_layout "$tmp/flaky"
+flaky=$(manifest_of "$tmp/flaky")
+flaky_layer=$(jq -r '.layers[0].digest[7:]' "$tmp/flaky/blobs/sha256/${flaky#sha256:}")
+cp "$tmp/flaky/blobs/sha256/$flaky_layer" "$stub/r2/$flaky_layer"
+touch "$stub/head-fails"
+out=$(remote "$tmp/flaky" nyra-base "sha256-${flaky#sha256:}.sig") && grep -qx 'blobs: 1 uploaded, 2 already present' <<<"$out" &&
+  ok "remote: a refused upload of a blob that is there is not a failure" || fail "remote: locked blob: $out"
+# A failed upload of a blob that is not there still stops the publish.
+make_layout "$tmp/noput"
+noput=$(manifest_of "$tmp/noput")
+touch "$stub/put-fails"
+remote_refused "remote: an upload that fails for a missing blob" remote "$tmp/noput" nyra-base "sha256-${noput#sha256:}.sig"
+rm "$stub/put-fails"
 
 # Each secret reaches only its own program, and none is in an argument list. The stub logs must
 # exist first: a missing log would make a negative grep pass.
